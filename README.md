@@ -1,10 +1,5 @@
 # GoUI
+Experimental web ui library for creating user interfaces.
 
 ## TODO
-- unmounting ?
-    - maybe setState on unmounted is a no op?
-    - or, log warning?
-        - use WillUnmount
-        - or, use the watcher pattern
-- listeners (not just OnClick)
-- all element types
+- log warning for setting state on unmounted component

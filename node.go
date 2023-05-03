@@ -5,14 +5,10 @@ import (
 )
 
 type Node struct {
-	dom      *godom.Elem
-	ty       string
-	classes  []string
-	disabled bool
-	style    string
-	text     string
-	children []*Node
-	onClick  func(*godom.MouseEvent)
+	dom   *godom.Elem
+	tag   string // empty string for text node
+	text  string // for text node only
+	attrs Attributes
 
 	// These fields are only used for component nodes
 	vdom    *Node
@@ -32,7 +28,7 @@ func (n *Node) isComponent() bool {
 }
 
 func (n *Node) isText() bool {
-	return n.ty == ""
+	return n.tag == ""
 }
 
 func (n *Node) createDom() *godom.Elem {
@@ -47,29 +43,27 @@ func (n *Node) createDom() *godom.Elem {
 		n.dom = godom.CreateTextElem(n.text)
 		return n.dom
 	}
-	n.dom = godom.Create(n.ty)
-	if n.ty == "button" && n.disabled {
+	n.dom = godom.Create(n.tag)
+	if n.attrs.Disabled {
 		n.dom.Attr("disabled", true)
 	}
-	// Class    string
-	if len(n.classes) > 0 {
-		n.dom.Classes(n.classes...)
+	if len(n.attrs.Class) > 0 {
+		n.dom.Attr("class", n.attrs.Class)
 	}
-	// Style    string
-	if n.style != "" {
-		n.dom.Attr("style", n.style)
+	if n.attrs.Style != "" {
+		n.dom.Attr("style", n.attrs.Style)
 	}
-	// Text     string
-	if n.text != "" {
-		n.dom.Text(n.text)
+	if n.attrs.Value != "" {
+		n.dom.Attr("value", n.attrs.Value)
 	}
-	if n.onClick != nil {
-		n.dom.OnClick(n.onClick)
+	if n.attrs.OnClick != nil {
+		n.dom.OnClick(n.attrs.OnClick)
 	}
-	// Children []Renderer
-	for _, child := range n.children {
-		el := child.createDom()
-		n.dom.AppendChild(el)
+	if n.attrs.OnInput != nil {
+		n.dom.OnInput(n.attrs.OnInput)
+	}
+	for _, child := range n.attrs.Children {
+		n.dom.AppendChild(child.createDom())
 	}
 	return n.dom
 }
@@ -82,7 +76,7 @@ func (n *Node) teardown() {
 		}
 		components.delete(n.id)
 		n.state = nil
-		for _, child := range n.children {
+		for _, child := range n.attrs.Children {
 			child.teardown()
 		}
 	}

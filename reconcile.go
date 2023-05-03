@@ -3,14 +3,15 @@ package goui
 import (
 	"fmt"
 	"reflect"
-	"strings"
+
+	"github.com/twharmon/godom"
 )
 
 func reconcile(old *Node, new *Node) {
-	if old.ty != new.ty || old.id != new.id {
+	if old.tag != new.tag || old.id != new.id {
 		newDom := new.createDom()
 		old.teardown()
-		old.dom.Replace(newDom)
+		old.dom.ReplaceWith(newDom)
 		return
 	}
 	if old.isComponent() {
@@ -18,73 +19,84 @@ func reconcile(old *Node, new *Node) {
 		reconcileVdomComponents(old, new)
 		return
 	}
-	// both old and new are plain dom nodes
+	// both old and new are plain dom nodes of same type
 	reconcileVdomNodes(old, new)
 }
 
 func reconcileVdomComponents(old *Node, new *Node) {
 	if fmt.Sprintf("%v", old.props) == fmt.Sprintf("%v", new.props) {
-		// new.instance = old.instance
 		new.vdom = old.vdom
 		new.dom = old.dom
 		return
 	}
-	// old.props = new.props
 	new.vdom = new.fn(new.props)
 	new.dom = old.dom
-	new.vdom.dom = old.dom
 	reconcile(old.vdom, new.vdom)
-	// old.instance.setProps(new.props)
-	// new.instance = old.instance
-	// new.vdom = render(new.instance)
-	// new.dom = old.dom
-	// new.vdom.dom = old.dom
-	// reconcile(old.vdom, new.vdom)
 }
 
 func reconcileVdomNodes(old *Node, new *Node) {
-	if old.ty != new.ty {
-		newDom := new.createDom()
-		old.dom.Replace(newDom)
+	if old.isText() {
+		if old.text != new.text {
+			old.dom.Text(new.text)
+		}
+		new.dom = old.dom
 		return
 	}
-	if old.text != new.text {
-		old.dom.Text(new.text)
+
+	// attributes
+	reconcileAttribute(old.attrs.Class, new.attrs.Class, "class", old.dom)
+	reconcileAttribute(old.attrs.Style, new.attrs.Style, "style", old.dom)
+	reconcileAttribute(old.attrs.Disabled, new.attrs.Disabled, "disabled", old.dom)
+	reconcileAttribute(old.attrs.Value, new.attrs.Value, "value", old.dom)
+
+	// listeners
+	reconcileListener(old.attrs.OnClick, new.attrs.OnClick, old.dom.OnClick)
+	reconcileListener(old.attrs.OnInput, new.attrs.OnInput, old.dom.OnInput)
+
+	new.dom = old.dom
+	reconcileChildren(old, new)
+}
+
+func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem *godom.Elem) {
+	if oldAttr != newAttr {
+		elem.Attr(name, newAttr)
 	}
-	if strings.Join(old.classes, ",") != strings.Join(new.classes, ",") {
-		old.dom.Classes(new.classes...)
-	}
-	if old.style != new.style {
-		old.dom.Attr("style", new.style)
-	}
-	if old.disabled != new.disabled {
-		old.dom.Attr("disabled", new.disabled)
-	}
-	if new.onClick != nil {
-		if old.onClick != nil {
-			oldFnPtr := reflect.ValueOf(old.onClick).UnsafePointer()
-			newFnPtr := reflect.ValueOf(new.onClick).UnsafePointer()
+}
+
+func reconcileListener[T any](oldFn func(T), newFn func(T), setter func(func(T)) *godom.Elem) {
+	if newFn != nil {
+		if oldFn != nil {
+			oldFnPtr := reflect.ValueOf(oldFn).UnsafePointer()
+			newFnPtr := reflect.ValueOf(newFn).UnsafePointer()
 			if oldFnPtr != newFnPtr {
-				old.dom.OnClick(new.onClick)
+				setter(newFn)
 			}
 		} else {
-			old.dom.OnClick(new.onClick)
+			setter(newFn)
+		}
+	} else {
+		if oldFn != nil {
+			var t func(T)
+			setter(t)
 		}
 	}
-	if len(old.children) > len(new.children) {
-		for i := len(new.children); i < len(old.children); i++ {
-			old.children[i].teardown()
-			old.dom.RemoveChild(old.children[i].dom)
+}
+
+func reconcileChildren(old *Node, new *Node) {
+	if len(old.attrs.Children) > len(new.attrs.Children) {
+		// previous dom has more children, teardown and remove them
+		for i := len(new.attrs.Children); i < len(old.attrs.Children); i++ {
+			old.attrs.Children[i].teardown()
+			old.dom.RemoveChild(old.attrs.Children[i].dom)
 		}
-	} else if len(old.children) < len(new.children) {
-		for i := len(old.children); i < len(new.children); i++ {
-			old.dom.AppendChild(new.children[i].createDom())
+	} else if len(old.attrs.Children) < len(new.attrs.Children) {
+		// previous dom has fewer children, create the new ones
+		for i := len(old.attrs.Children); i < len(new.attrs.Children); i++ {
+			old.dom.AppendChild(new.attrs.Children[i].createDom())
 		}
 	}
-	new.dom = old.dom
-	for i := 0; i < min(len(old.children), len(new.children)); i++ {
-		newNode := new.children[i]
-		oldNode := old.children[i]
-		reconcile(oldNode, newNode)
+	commonCnt := min(len(old.attrs.Children), len(new.attrs.Children))
+	for i := 0; i < commonCnt; i++ {
+		reconcile(old.attrs.Children[i], new.attrs.Children[i])
 	}
 }
