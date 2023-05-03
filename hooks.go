@@ -1,6 +1,9 @@
 package goui
 
-import "runtime"
+import (
+	"fmt"
+	"runtime"
+)
 
 var components = newStore[uintptr, *Node]()
 
@@ -9,7 +12,7 @@ func getCallerFuncId(skip int) (uintptr, uintptr) {
 	return pc, runtime.FuncForPC(pc).Entry()
 }
 
-func getCallerComponent() (uintptr, *Node) {
+func usePCAndComponentID() (uintptr, *Node) {
 	i := 1
 	for {
 		pc, name := getCallerFuncId(i)
@@ -24,32 +27,37 @@ func getCallerComponent() (uintptr, *Node) {
 }
 
 func UseState[T any](initialValue T) (T, func(func(T) T)) {
-	id, component := getCallerComponent()
+	pc, component := usePCAndComponentID()
 	fn := func(fn func(T) T) {
-		oldVal := component.state.get(id).(T)
-		newVal := fn(oldVal)
-		component.state.set(id, newVal)
-		old := component.vdom
-		component.vdom = component.fn(component.props)
-		reconcile(old, component.vdom)
+		go func() {
+			oldVal := component.state.get(pc).(T)
+			newVal := fn(oldVal)
+			if fmt.Sprintf("%v", oldVal) == fmt.Sprintf("%v", newVal) {
+				return
+			}
+			component.state.set(pc, newVal)
+			old := component.vdom
+			component.vdom = component.fn(component.props)
+			reconcile(old, component.vdom)
+		}()
 	}
-	if v := component.state.get(id); v != nil {
+	if v := component.state.get(pc); v != nil {
 		return v.(T), fn
 	}
-	component.state.set(id, initialValue)
+	component.state.set(pc, initialValue)
 	return initialValue, fn
 }
 
 func UseEffect(effect func() EffectTeardown, deps []any) {
-	id, component := getCallerComponent()
+	pc, component := usePCAndComponentID()
 	go func() {
-		if record := component.effects.get(id); record != nil {
+		if record := component.effects.get(pc); record != nil {
 			if areDepsSame(record.deps, deps) {
 				return
 			}
 			record.teardown()
 		}
-		component.effects.set(id, &effectRecord{
+		component.effects.set(pc, &effectRecord{
 			deps: deps,
 			td:   effect(),
 		})
