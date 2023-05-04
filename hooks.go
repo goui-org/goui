@@ -1,74 +1,86 @@
 package goui
 
 import (
-	"fmt"
+	"bytes"
+	"reflect"
 	"runtime"
 )
 
-var components = newStore[uintptr, *Node]()
+type Deps []any
 
-func getCallerFuncId(skip int) (uintptr, uintptr) {
-	pc, _, _, _ := runtime.Caller(skip)
-	return pc, runtime.FuncForPC(pc).Entry()
+func usePC() uintptr {
+	pc, _, _, _ := runtime.Caller(2)
+	return pc
 }
 
-func usePCAndComponentID() (uintptr, *Node) {
-	i := 1
-	for {
-		pc, name := getCallerFuncId(i)
-		if component := components.get(name); component != nil {
-			return pc, component
-		}
-		i++
-		if i > 1000 {
-			panic("component not found")
-		}
-	}
-}
-
-func UseState[T any](initialValue T) (T, func(func(T) T)) {
-	pc, component := usePCAndComponentID()
+func UseState[T any](initialValue T) (T, SetStateFunc[T]) {
+	pc := usePC()
+	node := getCurrentNode()
+	states := node.getStates()
 	fn := func(fn func(T) T) {
 		go func() {
-			oldVal := component.state.get(pc).(T)
+			oldVal := states.get(pc).(T)
 			newVal := fn(oldVal)
-			if fmt.Sprintf("%v", oldVal) == fmt.Sprintf("%v", newVal) {
+			if deepEqual(oldVal, newVal) {
 				return
 			}
-			component.state.set(pc, newVal)
-			old := component.vdom
-			component.vdom = component.fn(component.props)
-			reconcile(old, component.vdom)
+			states.set(pc, newVal)
+			old := node.vdom
+			node.vdom = node.fn(node.props)
+			reconcile(old, node.vdom)
 		}()
 	}
-	if v := component.state.get(pc); v != nil {
+	if v := states.get(pc); v != nil {
 		return v.(T), fn
 	}
-	component.state.set(pc, initialValue)
+	states.set(pc, initialValue)
 	return initialValue, fn
 }
 
-func UseEffect(effect func() EffectTeardown, deps []any) {
-	pc, component := usePCAndComponentID()
+func UseEffect(effect func() EffectTeardown, deps Deps) {
+	pc := usePC()
+	node := getCurrentNode()
+	effects := node.getEffects()
 	go func() {
-		if record := component.effects.get(pc); record != nil {
-			if areDepsSame(record.deps, deps) {
+		if record := effects.get(pc); record != nil {
+			if deepEqual(record.deps, deps) {
 				return
 			}
 			record.teardown()
 		}
-		component.effects.set(pc, &effectRecord{
+		effects.set(pc, &effectRecord{
 			deps: deps,
 			td:   effect(),
 		})
 	}()
 }
 
+func UseMemo[T any](create func() T, deps Deps) T {
+	pc := usePC()
+	node := getCurrentNode()
+	memos := node.getMemos()
+	if record := memos.get(pc); record != nil && deepEqual(record.deps, deps) {
+		return record.val.(T)
+	}
+	val := create()
+	memos.set(pc, &memoRecord{
+		deps: deps,
+		val:  val,
+	})
+	return val
+}
+
 type EffectTeardown func()
+type SetStateFunc[T any] func(func(T) T)
 
 type effectRecord struct {
-	deps []any
+	deps Deps
 	td   EffectTeardown
+}
+
+type memoRecord struct {
+	deps Deps
+	val  any
 }
 
 func (r *effectRecord) teardown() {
@@ -77,14 +89,95 @@ func (r *effectRecord) teardown() {
 	}
 }
 
-func areDepsSame(a []any, b []any) bool {
-	if len(a) != len(b) {
+func deepEqual(a any, b any) bool {
+	aVal := reflect.ValueOf(a)
+	bVal := reflect.ValueOf(b)
+	if aVal.Kind() != bVal.Kind() {
 		return false
 	}
-	for i := 0; i < len(a); i++ {
-		if a[i] != b[i] {
+	return deepValueEqual(aVal, bVal)
+}
+
+func arraySliceValueEqual(a reflect.Value, b reflect.Value) bool {
+	for i := 0; i < a.Len(); i++ {
+		if !deepValueEqual(a.Index(i), b.Index(i)) {
 			return false
 		}
 	}
 	return true
+}
+
+func deepValueEqual(a reflect.Value, b reflect.Value) bool {
+	if a.Comparable() {
+		return a.Equal(b)
+	}
+	switch a.Kind() {
+	case reflect.Func:
+		return a.UnsafePointer() == b.UnsafePointer()
+	case reflect.Array:
+		return arraySliceValueEqual(a, b)
+	case reflect.Slice:
+		if a.IsNil() != b.IsNil() {
+			return false
+		}
+		if a.Len() != b.Len() {
+			return false
+		}
+		if a.UnsafePointer() == b.UnsafePointer() {
+			return true
+		}
+		if a.Type().Elem().Kind() == reflect.Uint8 {
+			return bytes.Equal(a.Bytes(), b.Bytes())
+		}
+		return arraySliceValueEqual(a, b)
+	case reflect.Struct:
+		for i, n := 0, a.NumField(); i < n; i++ {
+			if !deepValueEqual(a.Field(i), b.Field(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Interface:
+		if a.IsNil() || b.IsNil() {
+			return a.IsNil() == b.IsNil()
+		}
+		return deepValueEqual(a.Elem(), b.Elem())
+	case reflect.Pointer:
+		if a.UnsafePointer() == b.UnsafePointer() {
+			return true
+		}
+		return deepValueEqual(a.Elem(), b.Elem())
+	case reflect.Map:
+		if a.IsNil() != b.IsNil() {
+			return false
+		}
+		if a.Len() != b.Len() {
+			return false
+		}
+		if a.UnsafePointer() == b.UnsafePointer() {
+			return true
+		}
+		for _, k := range a.MapKeys() {
+			aa := a.MapIndex(k)
+			bb := b.MapIndex(k)
+			if !aa.IsValid() || !bb.IsValid() || !deepValueEqual(aa, bb) {
+				return false
+			}
+		}
+		return true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return a.Int() == b.Int()
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return a.Uint() == b.Uint()
+	case reflect.String:
+		return a.String() == b.String()
+	case reflect.Bool:
+		return a.Bool() == b.Bool()
+	case reflect.Float32, reflect.Float64:
+		return a.Float() == b.Float()
+	case reflect.Complex64, reflect.Complex128:
+		return a.Complex() == b.Complex()
+	default:
+		return a.Interface() == b.Interface()
+	}
 }

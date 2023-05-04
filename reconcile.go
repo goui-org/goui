@@ -1,14 +1,13 @@
 package goui
 
 import (
-	"fmt"
-	"reflect"
+	"strings"
 
 	"github.com/twharmon/godom"
 )
 
 func reconcile(old *Node, new *Node) {
-	if old.tag != new.tag || old.id != new.id {
+	if old.tag != new.tag || old.pc != new.pc {
 		newDom := new.createDom()
 		old.teardown()
 		old.dom.ReplaceWith(newDom)
@@ -24,7 +23,13 @@ func reconcile(old *Node, new *Node) {
 }
 
 func reconcileVdomComponents(old *Node, new *Node) {
-	if fmt.Sprintf("%v", old.props) == fmt.Sprintf("%v", new.props) {
+	new._effects = old._effects
+	new._memos = old._memos
+	new._states = old._states
+	new.onClick = old.onClick
+	new.onInput = old.onInput
+	new.onMouseMove = old.onMouseMove
+	if deepEqual(old.props, new.props) {
 		new.vdom = old.vdom
 		new.dom = old.dom
 		return
@@ -43,15 +48,41 @@ func reconcileVdomNodes(old *Node, new *Node) {
 		return
 	}
 
+	if old.attrs.Class != new.attrs.Class {
+		old.dom.Classes(strings.Split(new.attrs.Class, " ")...)
+	}
+
 	// attributes
-	reconcileAttribute(old.attrs.Class, new.attrs.Class, "class", old.dom)
+	// reconcileAttribute(old.attrs.Class, new.attrs.Class, "class", old.dom)
 	reconcileAttribute(old.attrs.Style, new.attrs.Style, "style", old.dom)
 	reconcileAttribute(old.attrs.Disabled, new.attrs.Disabled, "disabled", old.dom)
 	reconcileAttribute(old.attrs.Value, new.attrs.Value, "value", old.dom)
 
 	// listeners
-	reconcileListener(old.attrs.OnClick, new.attrs.OnClick, old.dom.OnClick)
-	reconcileListener(old.attrs.OnInput, new.attrs.OnInput, old.dom.OnInput)
+	if !deepEqual(old.attrs.OnClick, new.attrs.OnClick) {
+		if old.onClick != nil {
+			old.onClick.Remove()
+		}
+		if new.attrs.OnClick != nil {
+			old.dom.AddMouseEventListener("click", new.attrs.OnClick)
+		}
+	}
+	if !deepEqual(old.attrs.OnInput, new.attrs.OnInput) {
+		if old.onInput != nil {
+			old.onInput.Remove()
+		}
+		if new.attrs.OnInput != nil {
+			old.dom.AddInputEventListener("input", new.attrs.OnInput)
+		}
+	}
+	if !deepEqual(old.attrs.OnMouseMove, new.attrs.OnMouseMove) {
+		if old.onMouseMove != nil {
+			old.onMouseMove.Remove()
+		}
+		if new.attrs.OnMouseMove != nil {
+			old.dom.AddMouseEventListener("mousemove", new.attrs.OnMouseMove)
+		}
+	}
 
 	new.dom = old.dom
 	reconcileChildren(old, new)
@@ -60,25 +91,6 @@ func reconcileVdomNodes(old *Node, new *Node) {
 func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem *godom.Elem) {
 	if oldAttr != newAttr {
 		elem.Attr(name, newAttr)
-	}
-}
-
-func reconcileListener[T any](oldFn func(T), newFn func(T), setter func(func(T)) *godom.Elem) {
-	if newFn != nil {
-		if oldFn != nil {
-			oldFnPtr := reflect.ValueOf(oldFn).UnsafePointer()
-			newFnPtr := reflect.ValueOf(newFn).UnsafePointer()
-			if oldFnPtr != newFnPtr {
-				setter(newFn)
-			}
-		} else {
-			setter(newFn)
-		}
-	} else {
-		if oldFn != nil {
-			var t func(T)
-			setter(t)
-		}
 	}
 }
 

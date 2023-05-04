@@ -1,16 +1,17 @@
 package goui
 
 import (
+	"fmt"
 	"reflect"
 	"runtime"
 
 	"github.com/twharmon/godom"
 )
 
-func Text(text string) *Node {
+func Text(text string, args ...any) *Node {
 	return &Node{
 		tag:  "",
-		text: text,
+		text: fmt.Sprintf(text, args...),
 	}
 }
 
@@ -23,8 +24,9 @@ type Attributes struct {
 	Value    string
 	Children []*Node
 
-	OnClick func(*godom.MouseEvent)
-	OnInput func(*godom.InputEvent)
+	OnClick     func(*godom.MouseEvent)
+	OnMouseMove func(*godom.MouseEvent)
+	OnInput     func(*godom.InputEvent)
 }
 
 func Element(tag string, attrs Attributes) *Node {
@@ -35,14 +37,17 @@ func Element(tag string, attrs Attributes) *Node {
 }
 
 func Component[Props any](fn func(Props) *Node, props Props) *Node {
-	id := runtime.FuncForPC(uintptr(reflect.ValueOf(fn).UnsafePointer())).Entry()
+	pc := runtime.FuncForPC(uintptr(reflect.ValueOf(fn).UnsafePointer())).Entry()
 	n := &Node{
-		props:   props,
-		fn:      func(p any) *Node { return fn(p.(Props)) },
-		state:   newStore[uintptr, any](),
-		effects: newStore[uintptr, *effectRecord](),
-		id:      id,
+		props: props,
+		pc:    pc,
 	}
-	components.set(id, n)
+	n.fn = func(p any) *Node {
+		prev := getCurrentNode()
+		assignCurrentNode(n)
+		node := fn(p.(Props))
+		assignCurrentNode(prev)
+		return node
+	}
 	return n
 }

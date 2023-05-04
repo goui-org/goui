@@ -1,6 +1,8 @@
 package goui
 
 import (
+	"strings"
+
 	"github.com/twharmon/godom"
 )
 
@@ -10,17 +12,44 @@ type Node struct {
 	text  string // for text node only
 	attrs Attributes
 
+	// TODO: maybe use a map if there are too many
+	onClick     *godom.Listener
+	onMouseMove *godom.Listener
+	onInput     *godom.Listener
+
 	// These fields are only used for component nodes
-	vdom    *Node
-	props   any
-	fn      func(any) *Node
-	id      uintptr
-	state   *store[uintptr, any]
-	effects *store[uintptr, *effectRecord]
+	vdom     *Node
+	props    any
+	fn       func(any) *Node
+	pc       uintptr
+	_states  *store[uintptr, any]
+	_effects *store[uintptr, *effectRecord]
+	_memos   *store[uintptr, *memoRecord]
 }
 
-func (n *Node) Render() *Node {
-	return n
+func (n *Node) AsChildren() []*Node {
+	return []*Node{n}
+}
+
+func (n *Node) getEffects() *store[uintptr, *effectRecord] {
+	if n._effects == nil {
+		n._effects = newStore[uintptr, *effectRecord]()
+	}
+	return n._effects
+}
+
+func (n *Node) getMemos() *store[uintptr, *memoRecord] {
+	if n._memos == nil {
+		n._memos = newStore[uintptr, *memoRecord]()
+	}
+	return n._memos
+}
+
+func (n *Node) getStates() *store[uintptr, any] {
+	if n._states == nil {
+		n._states = newStore[uintptr, any]()
+	}
+	return n._states
 }
 
 func (n *Node) isComponent() bool {
@@ -48,7 +77,8 @@ func (n *Node) createDom() *godom.Elem {
 		n.dom.Attr("disabled", true)
 	}
 	if len(n.attrs.Class) > 0 {
-		n.dom.Attr("class", n.attrs.Class)
+		// n.dom.Attr("class", n.attrs.Class)
+		n.dom.Classes(strings.Split(n.attrs.Class, " ")...)
 	}
 	if n.attrs.Style != "" {
 		n.dom.Attr("style", n.attrs.Style)
@@ -57,10 +87,13 @@ func (n *Node) createDom() *godom.Elem {
 		n.dom.Attr("value", n.attrs.Value)
 	}
 	if n.attrs.OnClick != nil {
-		n.dom.OnClick(n.attrs.OnClick)
+		n.onClick = n.dom.AddMouseEventListener("click", n.attrs.OnClick)
 	}
 	if n.attrs.OnInput != nil {
-		n.dom.OnInput(n.attrs.OnInput)
+		n.onInput = n.dom.AddInputEventListener("input", n.attrs.OnInput)
+	}
+	if n.attrs.OnMouseMove != nil {
+		n.onMouseMove = n.dom.AddMouseEventListener("mousemove", n.attrs.OnMouseMove)
 	}
 	for _, child := range n.attrs.Children {
 		n.dom.AppendChild(child.createDom())
@@ -69,13 +102,11 @@ func (n *Node) createDom() *godom.Elem {
 }
 
 func (n *Node) teardown() {
-	if n.fn != nil {
-		records := n.effects.all()
+	if n.fn != nil && n._effects != nil {
+		records := n._effects.all()
 		for _, record := range records {
 			record.teardown()
 		}
-		components.delete(n.id)
-		n.state = nil
 		for _, child := range n.attrs.Children {
 			child.teardown()
 		}
