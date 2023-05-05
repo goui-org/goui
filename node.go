@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/twharmon/godom"
+	"github.com/twharmon/goui/utils/concurrentmap"
 )
 
 type Node struct {
@@ -23,32 +24,32 @@ type Node struct {
 	props    any
 	fn       func(any) *Node
 	pc       uintptr
-	_states  *store[uintptr, any]
-	_effects *store[uintptr, *effectRecord]
-	_memos   *store[uintptr, *memoRecord]
+	_states  *concurrentmap.Map[uintptr, any]
+	_effects *concurrentmap.Map[uintptr, *effectRecord]
+	_memos   *concurrentmap.Map[uintptr, *memoRecord]
 }
 
 func (n *Node) AsChildren() []*Node {
 	return []*Node{n}
 }
 
-func (n *Node) getEffects() *store[uintptr, *effectRecord] {
+func (n *Node) getEffects() *concurrentmap.Map[uintptr, *effectRecord] {
 	if n._effects == nil {
-		n._effects = newStore[uintptr, *effectRecord]()
+		n._effects = concurrentmap.New[uintptr, *effectRecord]()
 	}
 	return n._effects
 }
 
-func (n *Node) getMemos() *store[uintptr, *memoRecord] {
+func (n *Node) getMemos() *concurrentmap.Map[uintptr, *memoRecord] {
 	if n._memos == nil {
-		n._memos = newStore[uintptr, *memoRecord]()
+		n._memos = concurrentmap.New[uintptr, *memoRecord]()
 	}
 	return n._memos
 }
 
-func (n *Node) getStates() *store[uintptr, any] {
+func (n *Node) getStates() *concurrentmap.Map[uintptr, any] {
 	if n._states == nil {
-		n._states = newStore[uintptr, any]()
+		n._states = concurrentmap.New[uintptr, any]()
 	}
 	return n._states
 }
@@ -104,20 +105,20 @@ func (n *Node) createDom() *godom.Elem {
 func (n *Node) teardown() {
 	if n.fn != nil {
 		if n._effects != nil {
-			records := n._effects.all()
+			records := n._effects.AllValues()
 			for _, record := range records {
 				record.teardown()
 			}
 			for _, child := range n.attrs.Children {
 				child.teardown()
 			}
-			n._effects.clear()
+			n._effects.Clear()
 		}
 		if n._memos != nil {
-			n._memos.clear()
+			n._memos.Clear()
 		}
 		if n._states != nil {
-			n._states.clear()
+			n._states.Clear()
 		}
 		componentIDGenerator.release(n.id)
 	}

@@ -1,38 +1,38 @@
-package goui
+package concurrentmap
 
 import "sync"
 
-type store[K comparable, V any] struct {
+type Map[K comparable, V any] struct {
 	m  map[K]V
 	mu sync.RWMutex
 }
 
-func newStore[K comparable, V any]() *store[K, V] {
-	return &store[K, V]{
+func New[K comparable, V any]() *Map[K, V] {
+	return &Map[K, V]{
 		m: make(map[K]V),
 	}
 }
 
-func (s *store[K, V]) get(k K) V {
+func (s *Map[K, V]) Get(k K) V {
 	s.mu.RLock()
 	v := s.m[k]
 	s.mu.RUnlock()
 	return v
 }
 
-func (s *store[K, V]) set(k K, v V) {
+func (s *Map[K, V]) Set(k K, v V) {
 	s.mu.Lock()
 	s.m[k] = v
 	s.mu.Unlock()
 }
 
-func (s *store[K, V]) delete(k K) {
+func (s *Map[K, V]) Delete(k K) {
 	s.mu.Lock()
 	delete(s.m, k)
 	s.mu.Unlock()
 }
 
-func (s *store[K, V]) clear() {
+func (s *Map[K, V]) Clear() {
 	s.mu.Lock()
 	for k := range s.m {
 		delete(s.m, k)
@@ -40,7 +40,7 @@ func (s *store[K, V]) clear() {
 	s.mu.Unlock()
 }
 
-func (s *store[K, V]) all() []V {
+func (s *Map[K, V]) AllValues() []V {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	vs := make([]V, 0, len(s.m))

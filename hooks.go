@@ -31,20 +31,20 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 	node := useCurrentComponent()
 	states := node.getStates()
 	fn := func(fn SetStateFunc[T]) {
-		oldVal := states.get(pc).(T)
+		oldVal := states.Get(pc).(T)
 		newVal := fn(oldVal)
 		if equalityutil.DeepEqual(oldVal, newVal) {
 			return
 		}
-		states.set(pc, newVal)
+		states.Set(pc, newVal)
 		old := node.vdom
 		node.vdom = node.fn(node.props)
 		reconcile(old, node.vdom)
 	}
-	if v := states.get(pc); v != nil {
+	if v := states.Get(pc); v != nil {
 		return v.(T), fn
 	}
-	states.set(pc, initialValue)
+	states.Set(pc, initialValue)
 	return initialValue, fn
 }
 
@@ -53,28 +53,47 @@ func UseEffect(effect func() EffectTeardown, deps Deps) {
 	node := useCurrentComponent()
 	effects := node.getEffects()
 	go func() {
-		if record := effects.get(pc); record != nil {
+		if record := effects.Get(pc); record != nil {
 			if equalityutil.DeepEqual(record.deps, deps) {
 				return
 			}
 			record.teardown()
 		}
-		effects.set(pc, &effectRecord{
+		effects.Set(pc, &effectRecord{
 			deps: deps,
 			td:   effect(),
 		})
 	}()
 }
 
+type Ref[T any] struct {
+	Current T
+}
+
+func UseRef[T any](initialValue T) *Ref[T] {
+	return UseMemo(func() *Ref[T] { return &Ref[T]{Current: initialValue} }, Deps{})
+}
+
+func UseDeferredEffect(effect func() EffectTeardown, deps Deps) {
+	first := UseRef(true)
+	UseEffect(func() EffectTeardown {
+		if first.Current {
+			first.Current = false
+			return nil
+		}
+		return effect()
+	}, deps)
+}
+
 func UseMemo[T any](create func() T, deps Deps) T {
 	pc := usePC()
 	node := useCurrentComponent()
 	memos := node.getMemos()
-	if record := memos.get(pc); record != nil && equalityutil.DeepEqual(record.deps, deps) {
+	if record := memos.Get(pc); record != nil && equalityutil.DeepEqual(record.deps, deps) {
 		return record.val.(T)
 	}
 	val := create()
-	memos.set(pc, &memoRecord{
+	memos.Set(pc, &memoRecord{
 		deps: deps,
 		val:  val,
 	})
