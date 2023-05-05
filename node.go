@@ -2,7 +2,6 @@ package goui
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/twharmon/godom"
 	"github.com/twharmon/goui/utils/concurrentmap"
@@ -22,9 +21,8 @@ type Node struct {
 	// These fields are only used for component nodes
 	id       ID
 	vdom     *Node
-	vdommu   sync.Mutex // TODO: May not need this
 	props    any
-	fn       func(any) *Node
+	render   func()
 	pc       uintptr
 	_states  *concurrentmap.Map[uintptr, any]
 	_effects *concurrentmap.Map[uintptr, *effectRecord]
@@ -33,6 +31,12 @@ type Node struct {
 
 func (n *Node) AsChildren() []*Node {
 	return []*Node{n}
+}
+
+func (n *Node) update() {
+	old := n.vdom
+	n.render()
+	reconcile(old, n.vdom)
 }
 
 func (n *Node) getEffects() *concurrentmap.Map[uintptr, *effectRecord] {
@@ -57,25 +61,23 @@ func (n *Node) getStates() *concurrentmap.Map[uintptr, any] {
 }
 
 func (n *Node) isComponent() bool {
-	return n.fn != nil
+	return n.render != nil
 }
 
 func (n *Node) isText() bool {
 	return n.tag == ""
 }
 
-func (n *Node) createDom() *godom.Elem {
-	if n.fn != nil {
-		n.vdommu.Lock()
-		n.vdom = n.fn(n.props) //TODO lock
-		rootDom := n.vdom.createDom()
-		n.dom = rootDom
-		n.vdommu.Unlock()
-		return rootDom
+func (n *Node) createDom() {
+	if n.render != nil {
+		n.render()
+		n.vdom.createDom()
+		n.dom = n.vdom.dom
+		return
 	}
 	if n.isText() {
 		n.dom = godom.CreateTextElem(n.text)
-		return n.dom
+		return
 	}
 	n.dom = godom.Create(n.tag)
 	if n.attrs.Disabled {
@@ -100,13 +102,13 @@ func (n *Node) createDom() *godom.Elem {
 		n.onMouseMove = n.dom.AddMouseEventListener("mousemove", n.attrs.OnMouseMove)
 	}
 	for _, child := range n.attrs.Children {
-		n.dom.AppendChild(child.createDom())
+		child.createDom()
+		n.dom.AppendChild(child.dom)
 	}
-	return n.dom
 }
 
 func (n *Node) teardown() {
-	if n.fn != nil {
+	if n.render != nil {
 		if n._effects != nil {
 			records := n._effects.AllValues()
 			for _, record := range records {

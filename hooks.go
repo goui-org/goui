@@ -31,18 +31,13 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 	node := useCurrentComponent()
 	states := node.getStates()
 	fn := func(fn SetStateFunc[T]) {
-
 		oldVal := states.Get(pc).(T)
 		newVal := fn(oldVal)
 		if equalityutil.DeepEqual(oldVal, newVal) {
 			return
 		}
 		states.Set(pc, newVal)
-		node.vdommu.Lock()
-		old := node.vdom
-		node.vdom = node.fn(node.props)
-		node.vdommu.Unlock() // here?
-		reconcile(old, node.vdom)
+		node.update()
 	}
 	if v := states.Get(pc); v != nil {
 		return v.(T), fn

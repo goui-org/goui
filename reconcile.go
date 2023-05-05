@@ -10,9 +10,9 @@ import (
 
 func reconcile(old *Node, new *Node) {
 	if old.tag != new.tag || old.pc != new.pc {
-		newDom := new.createDom()
+		new.createDom()
 		old.teardown()
-		old.dom.ReplaceWith(newDom)
+		old.dom.ReplaceWith(new.dom)
 		return
 	}
 	if old.isComponent() {
@@ -36,11 +36,9 @@ func reconcileVdomComponents(old *Node, new *Node) {
 		new.dom = old.dom
 		return
 	}
-	new.vdommu.Lock()
-	new.vdom = new.fn(new.props) // TODO: lock it here
 	new.dom = old.dom
-	new.vdommu.Unlock()
-	reconcile(old.vdom, new.vdom) // TODO: old.vdom can be nil when new.fn blocks go routine ??
+	new.render()
+	reconcile(old.vdom, new.vdom)
 }
 
 func reconcileVdomNodes(old *Node, new *Node) {
@@ -108,7 +106,8 @@ func reconcileChildren(old *Node, new *Node) {
 	} else if len(old.attrs.Children) < len(new.attrs.Children) {
 		// previous dom has fewer children, create the new ones
 		for i := len(old.attrs.Children); i < len(new.attrs.Children); i++ {
-			old.dom.AppendChild(new.attrs.Children[i].createDom())
+			new.attrs.Children[i].createDom()
+			old.dom.AppendChild(new.attrs.Children[i].dom)
 		}
 	}
 	commonCnt := mathutil.Min(len(old.attrs.Children), len(new.attrs.Children))

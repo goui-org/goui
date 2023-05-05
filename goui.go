@@ -5,6 +5,7 @@ import (
 )
 
 func Mount(selector string, n *Node) {
-	godom.Mount(selector, n.createDom())
+	n.createDom()
+	godom.Mount(selector, n.dom)
 	<-make(chan struct{})
 }

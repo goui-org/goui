@@ -45,8 +45,8 @@ func Component[Props any](fn func(Props) *Node, props Props) *Node {
 		pc:    pc,
 		id:    componentIDGenerator.generate(),
 	}
-	n.fn = func(p any) *Node {
-		return renderWithCurrentNodeLocked(n, fn, p.(Props))
+	n.render = func() {
+		renderWithCurrentNodeLocked(n, fn)
 	}
 	return n
 }
