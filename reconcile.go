@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/twharmon/godom"
+	"github.com/twharmon/goui/utils/equalityutil"
+	"github.com/twharmon/goui/utils/mathutil"
 )
 
 func reconcile(old *Node, new *Node) {
@@ -29,7 +31,7 @@ func reconcileVdomComponents(old *Node, new *Node) {
 	new.onClick = old.onClick
 	new.onInput = old.onInput
 	new.onMouseMove = old.onMouseMove
-	if deepEqual(old.props, new.props) {
+	if equalityutil.DeepEqual(old.props, new.props) {
 		new.vdom = old.vdom
 		new.dom = old.dom
 		return
@@ -59,7 +61,7 @@ func reconcileVdomNodes(old *Node, new *Node) {
 	reconcileAttribute(old.attrs.Value, new.attrs.Value, "value", old.dom)
 
 	// listeners
-	if !deepEqual(old.attrs.OnClick, new.attrs.OnClick) {
+	if !equalityutil.DeepEqual(old.attrs.OnClick, new.attrs.OnClick) {
 		if old.onClick != nil {
 			old.onClick.Remove()
 		}
@@ -67,7 +69,7 @@ func reconcileVdomNodes(old *Node, new *Node) {
 			old.dom.AddMouseEventListener("click", new.attrs.OnClick)
 		}
 	}
-	if !deepEqual(old.attrs.OnInput, new.attrs.OnInput) {
+	if !equalityutil.DeepEqual(old.attrs.OnInput, new.attrs.OnInput) {
 		if old.onInput != nil {
 			old.onInput.Remove()
 		}
@@ -75,7 +77,7 @@ func reconcileVdomNodes(old *Node, new *Node) {
 			old.dom.AddInputEventListener("input", new.attrs.OnInput)
 		}
 	}
-	if !deepEqual(old.attrs.OnMouseMove, new.attrs.OnMouseMove) {
+	if !equalityutil.DeepEqual(old.attrs.OnMouseMove, new.attrs.OnMouseMove) {
 		if old.onMouseMove != nil {
 			old.onMouseMove.Remove()
 		}
@@ -107,7 +109,7 @@ func reconcileChildren(old *Node, new *Node) {
 			old.dom.AppendChild(new.attrs.Children[i].createDom())
 		}
 	}
-	commonCnt := min(len(old.attrs.Children), len(new.attrs.Children))
+	commonCnt := mathutil.Min(len(old.attrs.Children), len(new.attrs.Children))
 	for i := 0; i < commonCnt; i++ {
 		reconcile(old.attrs.Children[i], new.attrs.Children[i])
 	}
