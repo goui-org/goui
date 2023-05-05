@@ -2,6 +2,7 @@ package goui
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/twharmon/godom"
 	"github.com/twharmon/goui/utils/concurrentmap"
@@ -21,6 +22,7 @@ type Node struct {
 	// These fields are only used for component nodes
 	id       ID
 	vdom     *Node
+	vdommu   sync.Mutex // TODO: May not need this
 	props    any
 	fn       func(any) *Node
 	pc       uintptr
@@ -64,10 +66,11 @@ func (n *Node) isText() bool {
 
 func (n *Node) createDom() *godom.Elem {
 	if n.fn != nil {
-		rootNode := n.fn(n.props)
-		rootDom := rootNode.createDom()
-		n.vdom = rootNode
+		n.vdommu.Lock()
+		n.vdom = n.fn(n.props) //TODO lock
+		rootDom := n.vdom.createDom()
 		n.dom = rootDom
+		n.vdommu.Unlock()
 		return rootDom
 	}
 	if n.isText() {

@@ -3,7 +3,7 @@ package goui
 import "sync"
 
 var currentNodeRef = struct {
-	mu   sync.RWMutex
+	mu   sync.Mutex
 	node *Node
 }{}
 
@@ -12,14 +12,15 @@ func UseCurrentComponentID() ID {
 }
 
 func useCurrentComponent() *Node {
-	currentNodeRef.mu.RLock()
-	node := currentNodeRef.node
-	currentNodeRef.mu.RUnlock()
-	return node
+	return currentNodeRef.node
 }
 
-func assignCurrentComponent(n *Node) {
+func renderWithCurrentNodeLocked[T any](n *Node, fn func(T) *Node, props T) *Node {
 	currentNodeRef.mu.Lock()
 	currentNodeRef.node = n
+	// n.vdommu.Lock()
+	n.vdom = fn(props) // hooks are protected
+	// n.vdommu.Unlock()
 	currentNodeRef.mu.Unlock()
+	return n.vdom
 }

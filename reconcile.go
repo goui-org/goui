@@ -36,9 +36,11 @@ func reconcileVdomComponents(old *Node, new *Node) {
 		new.dom = old.dom
 		return
 	}
-	new.vdom = new.fn(new.props)
+	new.vdommu.Lock()
+	new.vdom = new.fn(new.props) // TODO: lock it here
 	new.dom = old.dom
-	reconcile(old.vdom, new.vdom)
+	new.vdommu.Unlock()
+	reconcile(old.vdom, new.vdom) // TODO: old.vdom can be nil when new.fn blocks go routine ??
 }
 
 func reconcileVdomNodes(old *Node, new *Node) {

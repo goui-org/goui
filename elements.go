@@ -46,8 +46,7 @@ func Component[Props any](fn func(Props) *Node, props Props) *Node {
 		id:    componentIDGenerator.generate(),
 	}
 	n.fn = func(p any) *Node {
-		assignCurrentComponent(n)
-		return fn(p.(Props))
+		return renderWithCurrentNodeLocked(n, fn, p.(Props))
 	}
 	return n
 }
