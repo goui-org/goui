@@ -18,6 +18,7 @@ type Node struct {
 	onInput     *godom.Listener
 
 	// These fields are only used for component nodes
+	id       ID
 	vdom     *Node
 	props    any
 	fn       func(any) *Node
@@ -77,7 +78,6 @@ func (n *Node) createDom() *godom.Elem {
 		n.dom.Attr("disabled", true)
 	}
 	if len(n.attrs.Class) > 0 {
-		// n.dom.Attr("class", n.attrs.Class)
 		n.dom.Classes(strings.Split(n.attrs.Class, " ")...)
 	}
 	if n.attrs.Style != "" {
@@ -102,13 +102,23 @@ func (n *Node) createDom() *godom.Elem {
 }
 
 func (n *Node) teardown() {
-	if n.fn != nil && n._effects != nil {
-		records := n._effects.all()
-		for _, record := range records {
-			record.teardown()
+	if n.fn != nil {
+		if n._effects != nil {
+			records := n._effects.all()
+			for _, record := range records {
+				record.teardown()
+			}
+			for _, child := range n.attrs.Children {
+				child.teardown()
+			}
+			n._effects.clear()
 		}
-		for _, child := range n.attrs.Children {
-			child.teardown()
+		if n._memos != nil {
+			n._memos.clear()
 		}
+		if n._states != nil {
+			n._states.clear()
+		}
+		componentIDGenerator.release(n.id)
 	}
 }

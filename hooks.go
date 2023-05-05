@@ -8,27 +8,39 @@ import (
 
 type Deps []any
 
+type EffectTeardown func()
+type SetStateFunc[T any] func(T) T
+type StateDispatcher[T any] func(SetStateFunc[T])
+
+type effectRecord struct {
+	deps Deps
+	td   EffectTeardown
+}
+
+type memoRecord struct {
+	deps Deps
+	val  any
+}
+
 func usePC() uintptr {
 	pc, _, _, _ := runtime.Caller(2)
 	return pc
 }
 
-func UseState[T any](initialValue T) (T, SetStateFunc[T]) {
+func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 	pc := usePC()
-	node := getCurrentNode()
+	node := useCurrentComponent()
 	states := node.getStates()
-	fn := func(fn func(T) T) {
-		go func() {
-			oldVal := states.get(pc).(T)
-			newVal := fn(oldVal)
-			if deepEqual(oldVal, newVal) {
-				return
-			}
-			states.set(pc, newVal)
-			old := node.vdom
-			node.vdom = node.fn(node.props)
-			reconcile(old, node.vdom)
-		}()
+	fn := func(fn SetStateFunc[T]) {
+		oldVal := states.get(pc).(T)
+		newVal := fn(oldVal)
+		if deepEqual(oldVal, newVal) {
+			return
+		}
+		states.set(pc, newVal)
+		old := node.vdom
+		node.vdom = node.fn(node.props)
+		reconcile(old, node.vdom)
 	}
 	if v := states.get(pc); v != nil {
 		return v.(T), fn
@@ -39,7 +51,7 @@ func UseState[T any](initialValue T) (T, SetStateFunc[T]) {
 
 func UseEffect(effect func() EffectTeardown, deps Deps) {
 	pc := usePC()
-	node := getCurrentNode()
+	node := useCurrentComponent()
 	effects := node.getEffects()
 	go func() {
 		if record := effects.get(pc); record != nil {
@@ -57,7 +69,7 @@ func UseEffect(effect func() EffectTeardown, deps Deps) {
 
 func UseMemo[T any](create func() T, deps Deps) T {
 	pc := usePC()
-	node := getCurrentNode()
+	node := useCurrentComponent()
 	memos := node.getMemos()
 	if record := memos.get(pc); record != nil && deepEqual(record.deps, deps) {
 		return record.val.(T)
@@ -68,19 +80,6 @@ func UseMemo[T any](create func() T, deps Deps) T {
 		val:  val,
 	})
 	return val
-}
-
-type EffectTeardown func()
-type SetStateFunc[T any] func(func(T) T)
-
-type effectRecord struct {
-	deps Deps
-	td   EffectTeardown
-}
-
-type memoRecord struct {
-	deps Deps
-	val  any
 }
 
 func (r *effectRecord) teardown() {

@@ -19,7 +19,7 @@ func reconcile(old *Node, new *Node) {
 		return
 	}
 	// both old and new are plain dom nodes of same type
-	reconcileVdomNodes(old, new)
+	reconcileVdomNodes(old, new) // sendint old.dom == nil here
 }
 
 func reconcileVdomComponents(old *Node, new *Node) {

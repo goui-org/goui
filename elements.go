@@ -8,14 +8,9 @@ import (
 	"github.com/twharmon/godom"
 )
 
-func Text(text string, args ...any) *Node {
-	return &Node{
-		tag:  "",
-		text: fmt.Sprintf(text, args...),
-	}
-}
-
 var NoProps any = struct{}{}
+
+var componentIDGenerator = newIDGenerator()
 
 type Attributes struct {
 	Class    string
@@ -27,6 +22,13 @@ type Attributes struct {
 	OnClick     func(*godom.MouseEvent)
 	OnMouseMove func(*godom.MouseEvent)
 	OnInput     func(*godom.InputEvent)
+}
+
+func Text(text string, args ...any) *Node {
+	return &Node{
+		tag:  "",
+		text: fmt.Sprintf(text, args...),
+	}
 }
 
 func Element(tag string, attrs Attributes) *Node {
@@ -41,12 +43,13 @@ func Component[Props any](fn func(Props) *Node, props Props) *Node {
 	n := &Node{
 		props: props,
 		pc:    pc,
+		id:    componentIDGenerator.generate(),
 	}
 	n.fn = func(p any) *Node {
-		prev := getCurrentNode()
-		assignCurrentNode(n)
+		// prev := useCurrentComponent()
+		assignCurrentComponent(n)
 		node := fn(p.(Props))
-		assignCurrentNode(prev)
+		// assignCurrentComponent(prev)
 		return node
 	}
 	return n

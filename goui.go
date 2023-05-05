@@ -4,7 +4,7 @@ import (
 	"github.com/twharmon/godom"
 )
 
-func Mount(selector string, r *Node) {
-	godom.Mount(selector, r.createDom())
+func Mount(selector string, n *Node) {
+	godom.Mount(selector, n.createDom())
 	<-make(chan struct{})
 }
