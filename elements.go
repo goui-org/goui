@@ -46,11 +46,8 @@ func Component[Props any](fn func(Props) *Node, props Props) *Node {
 		id:    componentIDGenerator.generate(),
 	}
 	n.fn = func(p any) *Node {
-		// prev := useCurrentComponent()
 		assignCurrentComponent(n)
-		node := fn(p.(Props))
-		// assignCurrentComponent(prev)
-		return node
+		return fn(p.(Props))
 	}
 	return n
 }
