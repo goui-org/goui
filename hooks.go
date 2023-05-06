@@ -37,7 +37,7 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 			return
 		}
 		states.Set(pc, newVal)
-		node.update()
+		node.updateCh <- struct{}{}
 	}
 	if v := states.Get(pc); v != nil {
 		return v.(T), fn

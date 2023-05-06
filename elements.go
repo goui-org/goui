@@ -41,12 +41,18 @@ func Element(tag string, attrs Attributes) *Node {
 func Component[Props any](fn func(Props) *Node, props Props) *Node {
 	pc := runtime.FuncForPC(uintptr(reflect.ValueOf(fn).UnsafePointer())).Entry()
 	n := &Node{
-		props: props,
-		pc:    pc,
-		id:    componentIDGenerator.generate(),
+		props:    props,
+		pc:       pc,
+		id:       componentIDGenerator.generate(),
+		updateCh: make(chan struct{}),
 	}
 	n.render = func() {
 		renderWithCurrentNodeLocked(n, fn)
 	}
+	go func() {
+		for range n.updateCh {
+			n.update()
+		}
+	}()
 	return n
 }

@@ -23,6 +23,7 @@ type Node struct {
 	vdom     *Node
 	props    any
 	render   func()
+	updateCh chan struct{}
 	pc       uintptr
 	_states  *concurrentmap.Map[uintptr, any]
 	_effects *concurrentmap.Map[uintptr, *effectRecord]
