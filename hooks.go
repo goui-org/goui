@@ -50,7 +50,7 @@ func UseEffect(effect func() EffectTeardown, deps Deps) {
 	pc := usePC()
 	node := useCurrentComponent()
 	effects := node.getEffects()
-	go func() {
+	node.pendingEffects = append(node.pendingEffects, func() {
 		if record := effects.Get(pc); record != nil {
 			if equalityutil.DeepEqual(record.deps, deps) {
 				return
@@ -61,7 +61,7 @@ func UseEffect(effect func() EffectTeardown, deps Deps) {
 			deps: deps,
 			td:   effect(),
 		})
-	}()
+	})
 }
 
 type Ref[T any] struct {

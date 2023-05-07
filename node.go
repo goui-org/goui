@@ -19,15 +19,17 @@ type Node struct {
 	onInput     *godom.Listener
 
 	// These fields are only used for component nodes
-	id       ID
-	vdom     *Node
-	props    any
-	render   func()
-	updateCh chan struct{}
-	pc       uintptr
-	_states  *concurrentmap.Map[uintptr, any]
-	_effects *concurrentmap.Map[uintptr, *effectRecord]
-	_memos   *concurrentmap.Map[uintptr, *memoRecord]
+	id             ID
+	vdom           *Node
+	props          any
+	render         func()
+	updateCh       chan struct{}
+	doneCh         chan struct{}
+	pendingEffects []func()
+	pc             uintptr
+	_states        *concurrentmap.Map[uintptr, any]
+	_effects       *concurrentmap.Map[uintptr, *effectRecord]
+	_memos         *concurrentmap.Map[uintptr, *memoRecord]
 }
 
 func (n *Node) AsChildren() []*Node {
@@ -38,6 +40,13 @@ func (n *Node) update() {
 	old := n.vdom
 	n.render()
 	reconcile(old, n.vdom)
+}
+
+func (n *Node) runEffects() {
+	for _, effect := range n.pendingEffects {
+		effect()
+	}
+	n.pendingEffects = n.pendingEffects[:0]
 }
 
 func (n *Node) getEffects() *concurrentmap.Map[uintptr, *effectRecord] {
@@ -127,5 +136,6 @@ func (n *Node) teardown() {
 			n._states.Clear()
 		}
 		componentIDGenerator.release(n.id)
+		n.doneCh <- struct{}{}
 	}
 }

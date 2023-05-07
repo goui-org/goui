@@ -45,13 +45,20 @@ func Component[Props any](fn func(Props) *Node, props Props) *Node {
 		pc:       pc,
 		id:       componentIDGenerator.generate(),
 		updateCh: make(chan struct{}),
+		doneCh:   make(chan struct{}),
 	}
 	n.render = func() {
 		renderWithCurrentNodeLocked(n, fn)
+		go n.runEffects()
 	}
 	go func() {
-		for range n.updateCh {
-			n.update()
+		for {
+			select {
+			case <-n.updateCh:
+				n.update()
+			case <-n.doneCh:
+				return
+			}
 		}
 	}()
 	return n
