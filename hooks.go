@@ -50,8 +50,9 @@ func UseEffect(effect func() EffectTeardown, deps Deps) {
 	pc := usePC()
 	node := useCurrentComponent()
 	effects := node.getEffects()
+	record := effects.Get(pc)
 	node.pendingEffects = append(node.pendingEffects, func() {
-		if record := effects.Get(pc); record != nil {
+		if record != nil {
 			if equalityutil.DeepEqual(record.deps, deps) {
 				return
 			}
