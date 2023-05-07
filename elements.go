@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"runtime/debug"
+	"strings"
 
 	"github.com/twharmon/godom"
 )
 
 var NoProps any = struct{}{}
+
+var buildInfoPath string
 
 var componentIDGenerator = newIDGenerator()
 
@@ -22,6 +26,14 @@ type Attributes struct {
 	OnClick     func(*godom.MouseEvent)
 	OnMouseMove func(*godom.MouseEvent)
 	OnInput     func(*godom.InputEvent)
+}
+
+func init() {
+	buildInfo, ok := debug.ReadBuildInfo()
+	if !ok {
+		panic("unable to read build info")
+	}
+	buildInfoPath = buildInfo.Path + "/"
 }
 
 func Text(text string, args ...any) *Node {
@@ -38,17 +50,18 @@ func Element(tag string, attrs Attributes) *Node {
 	}
 }
 
-func Component[Props any](fn func(Props) *Node, props Props) *Node {
-	pc := runtime.FuncForPC(uintptr(reflect.ValueOf(fn).UnsafePointer())).Entry()
+func Component[Props any](render func(Props) *Node, props Props) *Node {
+	fn := runtime.FuncForPC(uintptr(reflect.ValueOf(render).UnsafePointer()))
 	n := &Node{
 		props:    props,
-		pc:       pc,
+		pc:       fn.Entry(),
+		name:     strings.TrimPrefix(fn.Name(), buildInfoPath),
 		id:       componentIDGenerator.generate(),
 		updateCh: make(chan struct{}),
 		doneCh:   make(chan struct{}),
 	}
 	n.render = func() {
-		renderWithCurrentNodeLocked(n, fn)
+		renderWithCurrentNodeLocked(n, render)
 		go n.runEffects()
 	}
 	go func() {

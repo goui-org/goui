@@ -20,6 +20,7 @@ type Node struct {
 
 	// These fields are only used for component nodes
 	id             ID
+	name           string
 	vdom           *Node
 	props          any
 	render         func()
@@ -119,15 +120,14 @@ func (n *Node) createDom() {
 
 func (n *Node) teardown() {
 	if n.render != nil {
+		n.doneCh <- struct{}{}
+		n.doneCh = nil
 		if n._effects != nil {
 			records := n._effects.AllValues()
+			n._effects.Clear()
 			for _, record := range records {
 				record.teardown()
 			}
-			for _, child := range n.attrs.Children {
-				child.teardown()
-			}
-			n._effects.Clear()
 		}
 		if n._memos != nil {
 			n._memos.Clear()
@@ -136,6 +136,8 @@ func (n *Node) teardown() {
 			n._states.Clear()
 		}
 		componentIDGenerator.release(n.id)
-		n.doneCh <- struct{}{}
+	}
+	for _, child := range n.attrs.Children {
+		child.teardown()
 	}
 }

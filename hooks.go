@@ -3,6 +3,7 @@ package goui
 import (
 	"runtime"
 
+	"github.com/twharmon/godom"
 	"github.com/twharmon/goui/utils/equalityutil"
 )
 
@@ -31,7 +32,13 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 	node := useCurrentComponent()
 	states := node.getStates()
 	fn := func(fn SetStateFunc[T]) {
-		oldVal := states.Get(pc).(T)
+		oldVal, ok := states.Get(pc).(T)
+		if !ok {
+			// I think this can only occur if setting state on unmounted component.
+			// since node teardown, which clears states, occurs during reconciliation
+			godom.Console.Error("[GOUI] Error: unable to set state for %s after component is unmounted", node.name)
+			return
+		}
 		newVal := fn(oldVal)
 		if equalityutil.DeepEqual(oldVal, newVal) {
 			return
@@ -50,8 +57,9 @@ func UseEffect(effect func() EffectTeardown, deps Deps) {
 	pc := usePC()
 	node := useCurrentComponent()
 	effects := node.getEffects()
+	record := effects.Get(pc)
 	node.pendingEffects = append(node.pendingEffects, func() {
-		if record := effects.Get(pc); record != nil {
+		if record != nil {
 			if equalityutil.DeepEqual(record.deps, deps) {
 				return
 			}
