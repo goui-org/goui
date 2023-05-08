@@ -34,7 +34,7 @@ type Node struct {
 	_memos         *concurrentmap.Map[uintptr, *memoRecord]
 }
 
-func (n *Node) AsChildren() []*Node {
+func (n *Node) Slice() []*Node {
 	return []*Node{n}
 }
 
