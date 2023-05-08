@@ -7,18 +7,17 @@ import (
 	"github.com/twharmon/goui/utils/equalityutil"
 )
 
-type Deps []any
 type EffectTeardown func()
 type SetStateFunc[T any] func(T) T
 type StateDispatcher[T any] func(SetStateFunc[T])
 
 type effectRecord struct {
-	deps Deps
+	deps []any
 	td   EffectTeardown
 }
 
 type memoRecord struct {
-	deps Deps
+	deps []any
 	val  any
 }
 
@@ -54,7 +53,7 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 	return initialValue, fn
 }
 
-func UseEffect(effect func() EffectTeardown, deps Deps) {
+func UseEffect(effect func() EffectTeardown, deps ...any) {
 	pc := usePC()
 	node := useCurrentComponent()
 	effects := node.getEffects()
@@ -78,10 +77,10 @@ type Ref[T any] struct {
 }
 
 func UseRef[T any](initialValue T) *Ref[T] {
-	return UseMemo(func() *Ref[T] { return &Ref[T]{Current: initialValue} }, Deps{})
+	return UseMemo(func() *Ref[T] { return &Ref[T]{Current: initialValue} })
 }
 
-func UseDeferredEffect(effect func() EffectTeardown, deps Deps) {
+func UseDeferredEffect(effect func() EffectTeardown, deps ...any) {
 	first := UseRef(true)
 	UseEffect(func() EffectTeardown {
 		if first.Current {
@@ -89,10 +88,10 @@ func UseDeferredEffect(effect func() EffectTeardown, deps Deps) {
 			return nil
 		}
 		return effect()
-	}, deps)
+	}, deps...)
 }
 
-func UseMemo[T any](create func() T, deps Deps) T {
+func UseMemo[T any](create func() T, deps ...any) T {
 	pc := usePC()
 	node := useCurrentComponent()
 	memos := node.getMemos()
