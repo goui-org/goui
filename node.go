@@ -26,6 +26,7 @@ type Node struct {
 	render         func()
 	updateCh       chan struct{}
 	doneCh         chan struct{}
+	tornDown       bool
 	pendingEffects []func()
 	pc             uintptr
 	_states        *concurrentmap.Map[uintptr, any]
@@ -80,7 +81,7 @@ func (n *Node) isText() bool {
 }
 
 func (n *Node) createDom() {
-	if n.render != nil {
+	if n.isComponent() {
 		n.render()
 		n.vdom.createDom()
 		n.dom = n.vdom.dom
@@ -119,9 +120,9 @@ func (n *Node) createDom() {
 }
 
 func (n *Node) teardown() {
-	if n.render != nil {
-		n.doneCh <- struct{}{}
-		n.doneCh = nil
+	if n.isComponent() {
+		n.done()
+		n.tornDown = true
 		if n._effects != nil {
 			records := n._effects.AllValues()
 			n._effects.Clear()
@@ -136,8 +137,16 @@ func (n *Node) teardown() {
 			n._states.Clear()
 		}
 		componentIDGenerator.release(n.id)
+		n.vdom.teardown()
 	}
 	for _, child := range n.attrs.Children {
 		child.teardown()
+	}
+}
+
+func (n *Node) done() {
+	select {
+	case n.doneCh <- struct{}{}:
+	default:
 	}
 }

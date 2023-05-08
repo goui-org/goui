@@ -32,11 +32,14 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 	node := useCurrentComponent()
 	states := node.getStates()
 	fn := func(fn SetStateFunc[T]) {
+		if node.tornDown {
+			godom.Console.Error("[GOUI] Error: unable to set state for %s after component is unmounted", node.name)
+			return
+		}
 		oldVal, ok := states.Get(pc).(T)
 		if !ok {
 			// I think this can only occur if setting state on unmounted component.
 			// since node teardown, which clears states, occurs during reconciliation
-			godom.Console.Error("[GOUI] Error: unable to set state for %s after component is unmounted", node.name)
 			return
 		}
 		newVal := fn(oldVal)
@@ -44,7 +47,10 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 			return
 		}
 		states.Set(pc, newVal)
-		node.updateCh <- struct{}{}
+		select {
+		case node.updateCh <- struct{}{}:
+		default:
+		}
 	}
 	if v := states.Get(pc); v != nil {
 		return v.(T), fn
