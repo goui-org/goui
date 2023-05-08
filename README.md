@@ -2,7 +2,7 @@
 Experimental web ui library for creating user interfaces.
 
 ## Usage
-```
+```go
 // main.go
 package main
 
@@ -14,9 +14,10 @@ import (
 func main() {
 	goui.Mount("#root", goui.Component(app.App, goui.NoProps))
 }
-```go
-
 ```
+
+
+```go
 // app/app.go
 package app
 
@@ -47,4 +48,4 @@ func App(_ any) *goui.Node {
 		},
 	})
 }
-```go
+```
