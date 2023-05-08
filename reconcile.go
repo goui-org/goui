@@ -98,21 +98,21 @@ func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem *g
 }
 
 func reconcileChildren(old *Node, new *Node) {
-	if len(old.attrs.Children) > len(new.attrs.Children) {
+	if len(old.children) > len(new.children) {
 		// previous dom has more children, teardown and remove them
-		for i := len(new.attrs.Children); i < len(old.attrs.Children); i++ {
-			old.attrs.Children[i].teardown()
-			old.dom.RemoveChild(old.attrs.Children[i].dom)
+		for i := len(new.children); i < len(old.children); i++ {
+			old.children[i].teardown()
+			old.dom.RemoveChild(old.children[i].dom)
 		}
-	} else if len(old.attrs.Children) < len(new.attrs.Children) {
+	} else if len(old.children) < len(new.children) {
 		// previous dom has fewer children, create the new ones
-		for i := len(old.attrs.Children); i < len(new.attrs.Children); i++ {
-			new.attrs.Children[i].createDom()
-			old.dom.AppendChild(new.attrs.Children[i].dom)
+		for i := len(old.children); i < len(new.children); i++ {
+			new.children[i].createDom()
+			old.dom.AppendChild(new.children[i].dom)
 		}
 	}
-	commonCnt := mathutil.Min(len(old.attrs.Children), len(new.attrs.Children))
+	commonCnt := mathutil.Min(len(old.children), len(new.children))
 	for i := 0; i < commonCnt; i++ {
-		reconcile(old.attrs.Children[i], new.attrs.Children[i])
+		reconcile(old.children[i], new.children[i])
 	}
 }
