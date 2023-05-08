@@ -40,6 +40,13 @@ func (s *Map[K, V]) Clear() {
 	s.mu.Unlock()
 }
 
+func (s *Map[K, V]) Len() int {
+	s.mu.RLock()
+	l := len(s.m)
+	s.mu.RUnlock()
+	return l
+}
+
 func (s *Map[K, V]) AllValues() []V {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

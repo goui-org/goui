@@ -25,6 +25,7 @@ func reconcile(old *Node, new *Node) {
 }
 
 func reconcileVdomComponents(old *Node, new *Node) {
+	old.done()
 	new._effects = old._effects
 	new._memos = old._memos
 	new._states = old._states
