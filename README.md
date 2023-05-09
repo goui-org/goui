@@ -1,6 +1,18 @@
 # GoUI
 Experimental web ui library for creating user interfaces.
 
+## GoUIX
+Create an app with the goui cli tool GoUIX
+
+```
+go install github.com/twharmon/gouix@latest
+```
+
+Create a new app
+```
+gouix create my-app
+```
+
 ## Usage
 ```go
 // main.go
