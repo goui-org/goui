@@ -23,6 +23,16 @@ type Attributes struct {
 	Value    string
 	Children []*Node
 
+	// Common UIEvents: https://developer.mozilla.org/en-US/docs/Web/API/UI_Events
+	// All Events:      https://developer.mozilla.org/en-US/docs/Web/API/Event
+	//
+	// MouseEvent: click, dblclick, mouseup, mousedown
+	// InputEvent: input, beforeinput
+	// KeyboardEvent: keydown, keypress, keyup
+	// CompositionEvent: compositionstart, compositionend, compositionupdate
+	// WheelEvent: wheel
+	// FocusEvent: focus, blur, focusin, and focusout
+
 	OnClick     func(*godom.MouseEvent)
 	OnMouseMove func(*godom.MouseEvent)
 	OnInput     func(*godom.InputEvent)
