@@ -21,7 +21,7 @@ type Attributes struct {
 	Disabled bool
 	Style    string
 	Value    string
-	Children any
+	Children Children
 
 	OnClick     func(*godom.MouseEvent)
 	OnMouseMove func(*godom.MouseEvent)

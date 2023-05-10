@@ -1,10 +1,13 @@
 package goui
 
-type Renderable interface {
-	[]*Node | *Node | string
-}
+// Children is either nil or an instance of one of these types:
+//
+//		*Node
+//	 []*Node
+//		string
+type Children any
 
-func renderableToNodes(r any) []*Node {
+func renderableToNodes(r Children) []*Node {
 	if r == nil {
 		return nil
 	}
