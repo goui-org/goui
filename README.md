@@ -13,6 +13,16 @@ Create a new app
 gouix create my-app
 ```
 
+Start the development server
+```
+gouix serve
+```
+
+Create a production build
+```
+gouix build
+```
+
 ## Usage
 ```go
 // main.go
@@ -39,23 +49,23 @@ import (
 )
 
 func App(_ any) *goui.Node {
-	cnt, setCnt := goui.UseState(0)
+	count, setCount := goui.UseState(0)
 
 	goui.UseEffect(func() goui.EffectTeardown {
-		godom.Console.Log("count changed to %d", cnt)
+		godom.Console.Log("count is %d", count)
 		return nil
-	}, cnt)
+	}, count)
 
 	return goui.Element("div", goui.Attributes{
 		Children: []*goui.Node{
 			goui.Element("button", goui.Attributes{
-				Children: goui.Text("increment").Slice(),
+				Children: "increment",
 				OnClick: func(e *godom.MouseEvent) {
-					setCnt(func(c int) int { return c + 1 })
+					setCount(func(c int) int { return c + 1 })
 				},
 			}),
 			goui.Element("p", goui.Attributes{
-				Children: goui.Text("cnt: %d", cnt).Slice(),
+				Children: fmt.Sprintf("count: %d", count),
 			}),
 		},
 	})
