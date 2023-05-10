@@ -1,10 +1,5 @@
 package goui
 
-// Children is either nil or an instance of one of these types:
-//
-//		*Node
-//	 []*Node
-//		string
 type Children any
 
 func renderableToNodes(r Children) []*Node {
@@ -19,5 +14,5 @@ func renderableToNodes(r Children) []*Node {
 	case []*Node:
 		return v
 	}
-	panic("unreachable code")
+	return []*Node{Text("%v", r)}
 }
