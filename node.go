@@ -8,10 +8,11 @@ import (
 )
 
 type Node struct {
-	dom   *godom.Elem
-	tag   string // empty string for text node
-	text  string // for text node only
-	attrs Attributes
+	dom      *godom.Elem
+	tag      string // empty string for text node
+	text     string // for text node only
+	attrs    Attributes
+	children []*Node
 
 	// TODO: maybe use a map if there are too many
 	onClick     *godom.Listener
@@ -113,7 +114,7 @@ func (n *Node) createDom() {
 	if n.attrs.OnMouseMove != nil {
 		n.onMouseMove = n.dom.AddMouseEventListener("mousemove", n.attrs.OnMouseMove)
 	}
-	for _, child := range n.attrs.Children {
+	for _, child := range n.children {
 		child.createDom()
 		n.dom.AppendChild(child.dom)
 	}
@@ -139,7 +140,7 @@ func (n *Node) teardown() {
 		componentIDGenerator.release(n.id)
 		n.vdom.teardown()
 	}
-	for _, child := range n.attrs.Children {
+	for _, child := range n.children {
 		child.teardown()
 	}
 }

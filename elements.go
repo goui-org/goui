@@ -21,7 +21,7 @@ type Attributes struct {
 	Disabled bool
 	Style    string
 	Value    string
-	Children []*Node
+	Children Children
 
 	// Common UIEvents: https://developer.mozilla.org/en-US/docs/Web/API/UI_Events
 	// All Events:      https://developer.mozilla.org/en-US/docs/Web/API/Event
@@ -55,8 +55,9 @@ func Text(text string, args ...any) *Node {
 
 func Element(tag string, attrs Attributes) *Node {
 	return &Node{
-		tag:   tag,
-		attrs: attrs,
+		tag:      tag,
+		attrs:    attrs,
+		children: renderableToNodes(attrs.Children),
 	}
 }
 
