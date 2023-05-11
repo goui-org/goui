@@ -1,7 +1,7 @@
 package goui
 
 import (
-	"strings"
+	"fmt"
 
 	"github.com/twharmon/godom"
 	"github.com/twharmon/goui/utils/equalityutil"
@@ -52,7 +52,7 @@ func reconcileVdomNodes(old *Node, new *Node) {
 	}
 
 	if old.attrs.Class != new.attrs.Class {
-		old.dom.Classes(strings.Split(new.attrs.Class, " ")...)
+		old.dom.Class(new.attrs.Class)
 	}
 
 	// attributes
@@ -93,7 +93,14 @@ func reconcileVdomNodes(old *Node, new *Node) {
 
 func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem *godom.Elem) {
 	if oldAttr != newAttr {
-		elem.Attr(name, newAttr)
+		var t T
+		if newAttr == t {
+			fmt.Println("remove attr")
+			elem.RemoveAttr(name)
+		} else {
+			fmt.Println("set attr", newAttr)
+			elem.Attr(name, newAttr)
+		}
 	}
 }
 

@@ -1,2 +1,6 @@
 github.com/twharmon/godom v0.0.5 h1:fklcvWocebDegFL4agPBakY1jnWQbTHAPK6riSwNgkY=
 github.com/twharmon/godom v0.0.5/go.mod h1:XNAFgGfk5UizrQs6gzQXFwFpejrVjb7gPu/Jxt+1KoI=
+github.com/twharmon/godom v0.0.6 h1:doxI+IVaHCw3j16HbVjC89aBIqWC3JwpPzpSs15hDKc=
+github.com/twharmon/godom v0.0.6/go.mod h1:XNAFgGfk5UizrQs6gzQXFwFpejrVjb7gPu/Jxt+1KoI=
+github.com/twharmon/godom v0.0.7 h1:cQIQGASFwky/FvKWJBUE9rU/IbHZAmZaAfZRp+VrUHE=
+github.com/twharmon/godom v0.0.7/go.mod h1:XNAFgGfk5UizrQs6gzQXFwFpejrVjb7gPu/Jxt+1KoI=
