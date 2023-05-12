@@ -106,13 +106,13 @@ func (n *Node) createDom() {
 		n.dom.Attr("value", n.attrs.Value)
 	}
 	if n.attrs.OnClick != nil {
-		n.onClick = n.dom.AddMouseEventListener("click", n.attrs.OnClick)
+		n.onClick = n.dom.AddMouseEventListener("click", n.attrs.OnClick.Invoke)
 	}
 	if n.attrs.OnInput != nil {
-		n.onInput = n.dom.AddInputEventListener("input", n.attrs.OnInput)
+		n.onInput = n.dom.AddInputEventListener("input", n.attrs.OnInput.Invoke)
 	}
 	if n.attrs.OnMouseMove != nil {
-		n.onMouseMove = n.dom.AddMouseEventListener("mousemove", n.attrs.OnMouseMove)
+		n.onMouseMove = n.dom.AddMouseEventListener("mousemove", n.attrs.OnMouseMove.Invoke)
 	}
 	for _, child := range n.children {
 		child.createDom()

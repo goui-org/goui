@@ -2,9 +2,9 @@ package goui
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/twharmon/godom"
-	"github.com/twharmon/goui/utils/equalityutil"
 	"github.com/twharmon/goui/utils/mathutil"
 )
 
@@ -32,7 +32,7 @@ func reconcileVdomComponents(old *Node, new *Node) {
 	new.onClick = old.onClick
 	new.onInput = old.onInput
 	new.onMouseMove = old.onMouseMove
-	if equalityutil.DeepEqual(old.props, new.props) {
+	if reflect.DeepEqual(old.props, new.props) {
 		new.vdom = old.vdom
 		new.dom = old.dom
 		return
@@ -62,28 +62,31 @@ func reconcileVdomNodes(old *Node, new *Node) {
 	reconcileAttribute(old.attrs.Value, new.attrs.Value, "value", old.dom)
 
 	// listeners
-	if !equalityutil.DeepEqual(old.attrs.OnClick, new.attrs.OnClick) {
+	if !reflect.DeepEqual(old.attrs.OnClick, new.attrs.OnClick) {
 		if old.onClick != nil {
 			old.onClick.Remove()
+			old.onClick = nil
 		}
 		if new.attrs.OnClick != nil {
-			old.dom.AddMouseEventListener("click", new.attrs.OnClick)
+			old.onClick = old.dom.AddMouseEventListener("click", new.attrs.OnClick.Invoke)
 		}
 	}
-	if !equalityutil.DeepEqual(old.attrs.OnInput, new.attrs.OnInput) {
+	if !reflect.DeepEqual(old.attrs.OnInput, new.attrs.OnInput) {
 		if old.onInput != nil {
 			old.onInput.Remove()
+			old.onInput = nil
 		}
 		if new.attrs.OnInput != nil {
-			old.dom.AddInputEventListener("input", new.attrs.OnInput)
+			old.onInput = old.dom.AddInputEventListener("input", new.attrs.OnInput.Invoke)
 		}
 	}
-	if !equalityutil.DeepEqual(old.attrs.OnMouseMove, new.attrs.OnMouseMove) {
+	if !reflect.DeepEqual(old.attrs.OnMouseMove, new.attrs.OnMouseMove) {
 		if old.onMouseMove != nil {
 			old.onMouseMove.Remove()
+			old.onMouseMove = nil
 		}
 		if new.attrs.OnMouseMove != nil {
-			old.dom.AddMouseEventListener("mousemove", new.attrs.OnMouseMove)
+			old.onMouseMove = old.dom.AddMouseEventListener("mousemove", new.attrs.OnMouseMove.Invoke)
 		}
 	}
 

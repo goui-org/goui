@@ -1,10 +1,10 @@
 package goui
 
 import (
+	"reflect"
 	"runtime"
 
 	"github.com/twharmon/godom"
-	"github.com/twharmon/goui/utils/equalityutil"
 )
 
 type EffectTeardown func()
@@ -37,7 +37,7 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 			return
 		}
 		newVal := fn(oldVal)
-		if equalityutil.DeepEqual(oldVal, newVal) {
+		if reflect.DeepEqual(oldVal, newVal) {
 			return
 		}
 		states.Set(pc, newVal)
@@ -60,7 +60,7 @@ func UseEffect(effect func() EffectTeardown, deps ...any) {
 	record := effects.Get(pc)
 	node.pendingEffects = append(node.pendingEffects, func() {
 		if record != nil {
-			if equalityutil.DeepEqual(record.deps, deps) {
+			if reflect.DeepEqual(record.deps, deps) {
 				return
 			}
 			record.teardown()
@@ -70,6 +70,16 @@ func UseEffect(effect func() EffectTeardown, deps ...any) {
 			td:   effect(),
 		})
 	})
+}
+
+type Callback[Func any] struct {
+	Invoke Func
+}
+
+func UseCallback[Func any](handlerFunc Func, deps ...any) *Callback[Func] {
+	return UseMemo(func() *Callback[Func] {
+		return &Callback[Func]{Invoke: handlerFunc}
+	}, deps...)
 }
 
 type Ref[T any] struct {
@@ -95,7 +105,7 @@ func UseMemo[T any](create func() T, deps ...any) T {
 	pc := usePC()
 	node := useCurrentComponent()
 	memos := node.getMemos()
-	if record := memos.Get(pc); record != nil && equalityutil.DeepEqual(record.deps, deps) {
+	if record := memos.Get(pc); record != nil && reflect.DeepEqual(record.deps, deps) {
 		return record.val.(T)
 	}
 	val := create()

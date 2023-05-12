@@ -33,9 +33,9 @@ type Attributes struct {
 	// WheelEvent: wheel
 	// FocusEvent: focus, blur, focusin, and focusout
 
-	OnClick     func(*godom.MouseEvent)
-	OnMouseMove func(*godom.MouseEvent)
-	OnInput     func(*godom.InputEvent)
+	OnClick     *Callback[func(*godom.MouseEvent)]
+	OnMouseMove *Callback[func(*godom.MouseEvent)]
+	OnInput     *Callback[func(*godom.InputEvent)]
 }
 
 func init() {
