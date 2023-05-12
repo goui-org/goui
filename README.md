@@ -44,6 +44,8 @@ func main() {
 package app
 
 import (
+	"fmt"
+
 	"github.com/twharmon/godom"
 	"github.com/twharmon/goui"
 )
@@ -57,12 +59,14 @@ func App(_ any) *goui.Node {
 	}, count)
 
 	return goui.Element("div", goui.Attributes{
+		Class: "app",
 		Children: []*goui.Node{
 			goui.Element("button", goui.Attributes{
+				Class:    "app-btn",
 				Children: "increment",
-				OnClick: func(e *godom.MouseEvent) {
+				OnClick: goui.UseCallback(func(e *godom.MouseEvent) {
 					setCount(func(c int) int { return c + 1 })
-				},
+				}),
 			}),
 			goui.Element("p", goui.Attributes{
 				Children: fmt.Sprintf("count: %d", count),
