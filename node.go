@@ -30,9 +30,9 @@ type Node struct {
 	tornDown       bool
 	pendingEffects []func()
 	pc             uintptr
-	_states        *concurrentmap.Map[uintptr, any]
-	_effects       *concurrentmap.Map[uintptr, *effectRecord]
-	_memos         *concurrentmap.Map[uintptr, *memoRecord]
+	_states        *concurrentmap.Map[string, any]
+	_effects       *concurrentmap.Map[string, *effectRecord]
+	_memos         *concurrentmap.Map[string, *memoRecord]
 }
 
 func (n *Node) Slice() []*Node {
@@ -52,23 +52,23 @@ func (n *Node) runEffects() {
 	n.pendingEffects = n.pendingEffects[:0]
 }
 
-func (n *Node) getEffects() *concurrentmap.Map[uintptr, *effectRecord] {
+func (n *Node) getEffects() *concurrentmap.Map[string, *effectRecord] {
 	if n._effects == nil {
-		n._effects = concurrentmap.New[uintptr, *effectRecord]()
+		n._effects = concurrentmap.New[string, *effectRecord]()
 	}
 	return n._effects
 }
 
-func (n *Node) getMemos() *concurrentmap.Map[uintptr, *memoRecord] {
+func (n *Node) getMemos() *concurrentmap.Map[string, *memoRecord] {
 	if n._memos == nil {
-		n._memos = concurrentmap.New[uintptr, *memoRecord]()
+		n._memos = concurrentmap.New[string, *memoRecord]()
 	}
 	return n._memos
 }
 
-func (n *Node) getStates() *concurrentmap.Map[uintptr, any] {
+func (n *Node) getStates() *concurrentmap.Map[string, any] {
 	if n._states == nil {
-		n._states = concurrentmap.New[uintptr, any]()
+		n._states = concurrentmap.New[string, any]()
 	}
 	return n._states
 }

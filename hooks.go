@@ -3,6 +3,8 @@ package goui
 import (
 	"reflect"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/twharmon/godom"
 )
@@ -21,14 +23,26 @@ type memoRecord struct {
 	val  any
 }
 
-func usePC() uintptr {
-	pc, _, _, _ := runtime.Caller(2)
-	return pc
+func usePC(node *Node) string {
+	var chain strings.Builder
+	i := 2
+	for {
+		pc, _, _, _ := runtime.Caller(i)
+		if i > 2 {
+			chain.WriteByte(':')
+		}
+		chain.WriteString(strconv.FormatUint(uint64(pc), 10))
+		if runtime.FuncForPC(pc).Entry() == node.pc {
+			break
+		}
+		i++
+	}
+	return chain.String()
 }
 
 func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
-	pc := usePC()
 	node := useCurrentComponent()
+	pc := usePC(node)
 	states := node.getStates()
 	fn := func(fn SetStateFunc[T]) {
 		oldVal, ok := states.Get(pc).(T)
@@ -54,8 +68,8 @@ func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
 }
 
 func UseEffect(effect func() EffectTeardown, deps ...any) {
-	pc := usePC()
 	node := useCurrentComponent()
+	pc := usePC(node)
 	effects := node.getEffects()
 	record := effects.Get(pc)
 	node.pendingEffects = append(node.pendingEffects, func() {
@@ -102,8 +116,8 @@ func UseDeferredEffect(effect func() EffectTeardown, deps ...any) {
 }
 
 func UseMemo[T any](create func() T, deps ...any) T {
-	pc := usePC()
 	node := useCurrentComponent()
+	pc := usePC(node)
 	memos := node.getMemos()
 	if record := memos.Get(pc); record != nil && reflect.DeepEqual(record.deps, deps) {
 		return record.val.(T)

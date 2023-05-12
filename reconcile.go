@@ -65,28 +65,25 @@ func reconcileVdomNodes(old *Node, new *Node) {
 	if !reflect.DeepEqual(old.attrs.OnClick, new.attrs.OnClick) {
 		if old.onClick != nil {
 			old.onClick.Remove()
-			old.onClick = nil
 		}
 		if new.attrs.OnClick != nil {
-			old.onClick = old.dom.AddMouseEventListener("click", new.attrs.OnClick.Invoke)
+			new.onClick = old.dom.AddMouseEventListener("click", new.attrs.OnClick.Invoke)
 		}
 	}
 	if !reflect.DeepEqual(old.attrs.OnInput, new.attrs.OnInput) {
 		if old.onInput != nil {
 			old.onInput.Remove()
-			old.onInput = nil
 		}
 		if new.attrs.OnInput != nil {
-			old.onInput = old.dom.AddInputEventListener("input", new.attrs.OnInput.Invoke)
+			new.onInput = old.dom.AddInputEventListener("input", new.attrs.OnInput.Invoke)
 		}
 	}
 	if !reflect.DeepEqual(old.attrs.OnMouseMove, new.attrs.OnMouseMove) {
 		if old.onMouseMove != nil {
 			old.onMouseMove.Remove()
-			old.onMouseMove = nil
 		}
 		if new.attrs.OnMouseMove != nil {
-			old.onMouseMove = old.dom.AddMouseEventListener("mousemove", new.attrs.OnMouseMove.Invoke)
+			new.onMouseMove = old.dom.AddMouseEventListener("mousemove", new.attrs.OnMouseMove.Invoke)
 		}
 	}
 
