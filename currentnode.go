@@ -2,9 +2,6 @@ package goui
 
 import (
 	"sync"
-	"time"
-
-	"github.com/twharmon/godom"
 )
 
 var currentNodeRef = struct {
@@ -23,11 +20,7 @@ func useCurrentComponent() *Node {
 func renderWithCurrentNodeLocked[T any](n *Node, render func(T) *Node) *Node {
 	currentNodeRef.mu.Lock()
 	currentNodeRef.node = n
-	t := time.Now()
-	n.vdom = render(n.props.(T)) // hooks are protected to use useCurrentComponent()
-	if dur := time.Since(t); dur > time.Millisecond*5 {
-		godom.Console.Warn("[GOUI] Warning: %s took %s to render", n.name, dur)
-	}
+	n.vdom = render(n.props.(T))
 	currentNodeRef.mu.Unlock()
 	return n.vdom
 }

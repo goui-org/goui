@@ -39,6 +39,7 @@ type Attributes struct {
 }
 
 func init() {
+	var ok bool
 	buildInfo, ok := debug.ReadBuildInfo()
 	if !ok {
 		panic("unable to read build info")
