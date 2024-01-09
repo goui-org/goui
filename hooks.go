@@ -46,34 +46,6 @@ func UseState[T comparable](initialValue T) (T, func(func(T) T)) {
 	return elem.hooks[cursor].(T), setState
 }
 
-// export let useState = <S>(initialValue: S): [S, Dispatch<SetStateAction<S>>] => {
-//     let [states, cursor] = getHookData();
-//     if (states.length <= cursor) {
-//         states.push(initialValue);
-//     }
-//     let ref = useRef(current.e!);
-//     ref.value = current.e!;
-//     let setState = useCallback((action: SetStateAction<S>) => {
-//         let elem = ref.value;
-//         if (elem.u) throw 'bad set state';
-//         let newValue: S = typeof action === 'function' ? (action as UpdateStateAction<S>)(states[cursor]) : action;
-//         if (states[cursor] !== newValue) {
-//             states[cursor] = newValue;
-//             elem.q ??= [];
-//             elem.q!.push(callComponentFunc(elem));
-//             queueMicrotask(() => {
-//                 let tip = elem.q!.pop();
-//                 if (tip) {
-//                     elem.q!.length = 0;
-//                     reconcile(elem.v!, tip);
-//                     elem.v = tip;
-//                 }
-//             });
-//         }
-//     }, []);
-//     return [states[cursor], setState];
-// };
-
 func UseEffect(effect func() EffectTeardown, deps Deps) {
 	cursor, elem := useHooks()
 	if len(elem.hooks) <= cursor {
@@ -100,21 +72,24 @@ func UseEffect(effect func() EffectTeardown, deps Deps) {
 	}
 }
 
-// export let useImmediateEffect = (effect: () => (void | (() => void)), deps: any[]) => {
-//     let [effects, cursor] = getHookData();
-//     let record = effects[cursor] as EffectRecord;
-//     if (!record) {
-//         record = {
-//             d: deps,
-//             t: effect(),
-//         };
-//         effects.push(record);
-//     } else if (!areDepsEqual(deps, record.d)) {
-//         record.t?.();
-//         record.d = deps;
-//         record.t = effect();
-//     }
-// };
+func UseImmediateEffect(effect func() EffectTeardown, deps Deps) {
+	cursor, elem := useHooks()
+	if len(elem.hooks) <= cursor {
+		elem.hooks = append(elem.hooks, &effectRecord{
+			deps:     deps,
+			teardown: effect(),
+		})
+		return
+	}
+	record := elem.hooks[cursor].(*effectRecord)
+	if !areDepsEqual(deps, record.deps) {
+		if record.teardown != nil {
+			record.teardown()
+		}
+		record.deps = deps
+		record.teardown = effect()
+	}
+}
 
 type memoRecord[T any] struct {
 	deps Deps

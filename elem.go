@@ -5,23 +5,16 @@ import (
 	"syscall/js"
 )
 
-// remove godom ... do it directly from here
-
-// import { current, Ref } from './hooks.js';
-// import { setAttr } from './reconcile.js';
 type NoProps any
-
-// type ComponentFn func(any) *Elem
 
 type Children []*Elem
 
 type Elem struct {
-	tag    string
-	ptr    uintptr
-	render func() *Elem
-	key    string
-	props  any
-	// attrs     Attributes
+	tag       string
+	ptr       uintptr
+	render    func() *Elem
+	key       string
+	props     any
 	ref       *Ref[js.Value]
 	dom       js.Value
 	unmounted bool
@@ -35,11 +28,6 @@ type Elem struct {
 
 func (e *Elem) Children() Children {
 	return Children{e}
-}
-
-func (e *Elem) Attributes() *Attributes {
-	a := e.props.(Attributes)
-	return &a
 }
 
 func (e *Elem) teardown() {
