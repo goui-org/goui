@@ -1,6 +1,7 @@
 package goui
 
 import (
+	"reflect"
 	"syscall/js"
 )
 
@@ -38,8 +39,8 @@ func reconcileVdomElems(oldElem *Elem, newElem *Elem) {
 }
 
 func reconcileTextElems(oldElem *Elem, newElem *Elem) {
-	if oldElem.props != newElem.props {
-		oldElem.dom.Set("data", newElem.props)
+	if oldElem.text != newElem.text {
+		oldElem.dom.Set("data", newElem.text)
 	}
 }
 
@@ -55,8 +56,7 @@ func reconcileComponents(oldElem *Elem, newElem *Elem) {
 
 func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem js.Value) {
 	if oldAttr != newAttr {
-		var t T
-		if newAttr == t {
+		if reflect.ValueOf(newAttr).IsZero() {
 			elem.Call("removeAttr", name)
 		} else {
 			elem.Set(name, newAttr)
@@ -65,8 +65,8 @@ func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem js
 }
 
 func reconcileAttributes(oldElem *Elem, newElem *Elem) {
-	oldAttrs := oldElem.props.(Attributes)
-	newAttrs := newElem.props.(Attributes)
+	oldAttrs := oldElem.attrs //.(*Attributes)
+	newAttrs := newElem.attrs //.(*Attributes)
 
 	if oldAttrs.Class != newAttrs.Class {
 		if newAttrs.Class == "" {
@@ -88,7 +88,7 @@ func reconcileAttributes(oldElem *Elem, newElem *Elem) {
 	reconcileAttribute(oldAttrs.Value, newAttrs.Value, "value", oldElem.dom)
 	if oldAttrs.OnClick != newAttrs.OnClick {
 		oldElem.dom.Set("onclick", js.FuncOf(func(_ js.Value, args []js.Value) any {
-			newAttrs.OnClick.Invoke(newMouseEvent(args[0]))
+			newAttrs.OnClick.invoke(newMouseEvent(args[0]))
 			return nil
 		}))
 	}
@@ -108,7 +108,7 @@ func callComponentFuncAndReconcile(oldElem *Elem, newElem *Elem) {
 	newElem.virt = newElemVdom
 }
 
-func moveBefore(parent js.Value, newChdNextKey string, oldChdKey string, currDomNode js.Value, movingDomNode js.Value) {
+func moveBefore(parent js.Value, newChdNextKey any, oldChdKey any, currDomNode js.Value, movingDomNode js.Value) {
 	oldPos := movingDomNode.Get("nextSibling")
 	parent.Call("insertBefore", movingDomNode, currDomNode)
 	if !currDomNode.Equal(parent.Get("lastChild")) && newChdNextKey != oldChdKey {
@@ -117,8 +117,8 @@ func moveBefore(parent js.Value, newChdNextKey string, oldChdKey string, currDom
 }
 
 func reconcileChildren(oldElem *Elem, newElem *Elem) {
-	newChn := newElem.props.(Attributes).Children
-	oldChn := oldElem.props.(Attributes).Children
+	newChn := newElem.attrs.Children //.(*Attributes).Children
+	oldChn := oldElem.attrs.Children //.(*Attributes).Children
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {
@@ -131,10 +131,14 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 	start := 0
 
 	// prefix
-	for start < newLength &&
-		start < oldLength &&
-		(newChn[start].key == "" || newChn[start].key == oldChn[start].key) {
-		reconcile(oldChn[start], newChn[start])
+	for start < newLength && start < oldLength {
+		o := oldChn[start]
+		n := newChn[start]
+		if n.key == nil || n.key == o.key {
+			reconcile(o, n)
+		} else {
+			break
+		}
 		start++
 	}
 	if start >= newLength {
@@ -148,22 +152,27 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 	// suffix
 	oldLength--
 	newLength--
-	for newLength > start &&
-		oldLength >= start &&
-		(newChn[newLength].key == "" || newChn[newLength].key == oldChn[oldLength].key) {
-		reconcile(oldChn[oldLength], newChn[newLength])
+	for newLength > start && oldLength >= start {
+		o := oldChn[oldLength]
+		n := newChn[newLength]
+		if n.key == nil || n.key == o.key {
+			reconcile(oldChn[oldLength], newChn[newLength])
+		} else {
+			break
+		}
 		oldLength--
 		newLength--
 	}
 
-	oldMap := make(map[string]*Elem)
+	oldMap := make(map[any]*Elem)
 	for i := start; i <= oldLength; i++ {
 		oldChd := oldChn[i]
 		oldKey := oldChd.key
+		noMoreNewChn := false
 		if i >= len(newChn) {
-			continue
+			noMoreNewChn = true
 		}
-		if oldKey != "" && oldKey != newChn[i].key {
+		if oldKey != nil && (noMoreNewChn || oldKey != newChn[i].key) {
 			oldMap[oldKey] = oldChd
 		}
 	}
@@ -185,7 +194,7 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 		}
 		mappedOld := oldMap[newKey]
 		chdDom := chNodes.Index(start)
-		nextNewKey := ""
+		var nextNewKey any
 		if len(newChn) > start+1 {
 			nextNewKey = newChn[start+1].key
 		}

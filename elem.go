@@ -13,8 +13,9 @@ type Elem struct {
 	tag       string
 	ptr       uintptr
 	render    func() *Elem
-	key       string
-	props     any
+	key       any
+	attrs     *Attributes
+	text      string
 	ref       *Ref[js.Value]
 	dom       js.Value
 	unmounted bool
@@ -22,7 +23,7 @@ type Elem struct {
 	virt        *Elem
 	queue       []*Elem
 	hooks       []any
-	hooksCursor int
+	hooksCursor int // TODO: does byte help?
 	memo        []any
 }
 
@@ -31,9 +32,6 @@ func (e *Elem) Children() Children {
 }
 
 func (e *Elem) teardown() {
-	if e.ref != nil {
-		e.ref.Value = js.Null()
-	}
 	if e.virt != nil {
 		e.unmounted = true
 		e.queue = nil
@@ -47,15 +45,18 @@ func (e *Elem) teardown() {
 		e.virt.teardown()
 		return
 	}
-	if attrs, ok := e.props.(Attributes); ok {
-		for _, ch := range attrs.Children {
+	if e.ref != nil {
+		e.ref.Value = js.Undefined()
+	}
+	if e.attrs != nil {
+		for _, ch := range e.attrs.Children {
 			ch.teardown()
 		}
 	}
 }
 
 type Keyer interface {
-	Key() string
+	Key() any
 }
 
 type Memoer interface {
@@ -67,7 +68,6 @@ func Component[T any](ty func(T) *Elem, props T) *Elem {
 	e := &Elem{
 		ptr:    fn,
 		render: func() *Elem { return ty(props) },
-		props:  props,
 	}
 	if keyer, ok := any(props).(Keyer); ok {
 		e.key = keyer.Key()
@@ -78,9 +78,13 @@ func Component[T any](ty func(T) *Elem, props T) *Elem {
 	return e
 }
 
+// type Textable interface {
+// 	string | int
+// }
+
 func Text(content string) *Elem {
 	return &Elem{
-		props: content,
+		text: content,
 	}
 }
 
@@ -99,7 +103,7 @@ func callComponentFunc(elem *Elem) *Elem {
 }
 
 type Callback[Func any] struct {
-	Invoke Func
+	invoke Func
 }
 
 type Attributes struct {
@@ -129,11 +133,12 @@ type Attributes struct {
 	OnInput     *Callback[func(*InputEvent)]
 }
 
-func Element(tag string, attrs Attributes) *Elem {
-	elem := &Elem{tag: tag}
-	elem.props = attrs
-	elem.key = attrs.Key
-	return elem
+func Element(tag string, attrs *Attributes) *Elem {
+	return &Elem{
+		tag:   tag,
+		attrs: attrs,
+		key:   attrs.Key,
+	}
 }
 
 var namespacePrefix = "http://www.w3.org/"
@@ -154,7 +159,7 @@ func createDom(elem *Elem, ns string) js.Value {
 		if elem.ref != nil {
 			elem.ref.Value = elem.dom
 		}
-		attrs := elem.props.(Attributes)
+		attrs := elem.attrs
 		if attrs.Disabled {
 			elem.dom.Set("disabled", true)
 		}
@@ -175,7 +180,7 @@ func createDom(elem *Elem, ns string) js.Value {
 		}
 		if attrs.OnClick != nil {
 			elem.dom.Set("onclick", js.FuncOf(func(_ js.Value, args []js.Value) any {
-				attrs.OnClick.Invoke(newMouseEvent(args[0]))
+				attrs.OnClick.invoke(newMouseEvent(args[0]))
 				return nil
 			}))
 		}
@@ -186,7 +191,7 @@ func createDom(elem *Elem, ns string) js.Value {
 		elem.virt = callComponentFunc(elem)
 		return createDom(elem.virt, ns)
 	} else {
-		elem.dom = createTextNode(elem.props.(string))
+		elem.dom = createTextNode(elem.text)
 		return elem.dom
 	}
 	return elem.dom

@@ -116,7 +116,7 @@ func UseMemo[T any](create func() T, deps Deps) T {
 
 func UseCallback[Func any](handlerFunc Func, deps Deps) *Callback[Func] {
 	return UseMemo(func() *Callback[Func] {
-		return &Callback[Func]{Invoke: handlerFunc}
+		return &Callback[Func]{invoke: handlerFunc}
 	}, deps)
 }
 
