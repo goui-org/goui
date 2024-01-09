@@ -1,137 +1,193 @@
 package goui
 
 import (
-	"reflect"
-	"runtime"
-	"strconv"
-	"strings"
-
-	"github.com/twharmon/godom"
+	"time"
 )
 
 type EffectTeardown func()
-type SetStateFunc[T any] func(T) T
-type StateDispatcher[T any] func(SetStateFunc[T])
+type Deps []any
 
 type effectRecord struct {
-	deps []any
-	td   EffectTeardown
+	deps     Deps
+	teardown EffectTeardown
 }
 
-type memoRecord struct {
-	deps []any
-	val  any
+func useHooks() (int, *Elem) {
+	elem := currentElem
+	cursor := elem.hooksCursor
+	elem.hooksCursor++
+	return cursor, elem
 }
 
-func usePC(node *Node) string {
-	var chain strings.Builder
-	i := 2
-	for {
-		pc, _, _, _ := runtime.Caller(i)
-		if i > 2 {
-			chain.WriteByte(':')
-		}
-		chain.WriteString(strconv.FormatUint(uint64(pc), 10))
-		if runtime.FuncForPC(pc).Entry() == node.pc {
-			break
-		}
-		i++
+func UseState[T comparable](initialValue T) (T, func(func(T) T)) {
+	cursor, elem := useHooks()
+	if len(elem.hooks) <= cursor {
+		elem.hooks = append(elem.hooks, initialValue)
 	}
-	return chain.String()
-}
-
-func UseState[T any](initialValue T) (T, StateDispatcher[T]) {
-	node := useCurrentComponent()
-	pc := usePC(node)
-	states := node.getStates()
-	fn := func(fn SetStateFunc[T]) {
-		oldVal, ok := states.Get(pc).(T)
-		if node.tornDown || !ok {
-			godom.Console.Error("[GOUI] Error: unable to set state for %s after component is unmounted", node.name)
-			return
+	setState := func(update func(T) T) {
+		if elem.unmounted {
+			panic("bad set state")
 		}
-		newVal := fn(oldVal)
-		if reflect.DeepEqual(oldVal, newVal) {
-			return
-		}
-		states.Set(pc, newVal)
-		select {
-		case node.updateCh <- struct{}{}:
-		default:
+		oldVal := elem.hooks[cursor].(T)
+		newVal := update(oldVal)
+		if newVal != oldVal {
+			elem.hooks[cursor] = newVal
+			elem.queue = append(elem.queue, callComponentFunc(elem))
+			queueTask(func() {
+				if len(elem.queue) > 0 {
+					tip := elem.queue[len(elem.queue)-1]
+					elem.queue = nil
+					reconcile(elem.virt, tip)
+					elem.virt = tip
+				}
+			})
 		}
 	}
-	if v := states.Get(pc); v != nil {
-		return v.(T), fn
-	}
-	states.Set(pc, initialValue)
-	return initialValue, fn
+	return elem.hooks[cursor].(T), setState
 }
 
-func UseEffect(effect func() EffectTeardown, deps ...any) {
-	node := useCurrentComponent()
-	pc := usePC(node)
-	effects := node.getEffects()
-	record := effects.Get(pc)
-	node.pendingEffects = append(node.pendingEffects, func() {
-		if record != nil {
-			if reflect.DeepEqual(record.deps, deps) {
-				return
+// export let useState = <S>(initialValue: S): [S, Dispatch<SetStateAction<S>>] => {
+//     let [states, cursor] = getHookData();
+//     if (states.length <= cursor) {
+//         states.push(initialValue);
+//     }
+//     let ref = useRef(current.e!);
+//     ref.value = current.e!;
+//     let setState = useCallback((action: SetStateAction<S>) => {
+//         let elem = ref.value;
+//         if (elem.u) throw 'bad set state';
+//         let newValue: S = typeof action === 'function' ? (action as UpdateStateAction<S>)(states[cursor]) : action;
+//         if (states[cursor] !== newValue) {
+//             states[cursor] = newValue;
+//             elem.q ??= [];
+//             elem.q!.push(callComponentFunc(elem));
+//             queueMicrotask(() => {
+//                 let tip = elem.q!.pop();
+//                 if (tip) {
+//                     elem.q!.length = 0;
+//                     reconcile(elem.v!, tip);
+//                     elem.v = tip;
+//                 }
+//             });
+//         }
+//     }, []);
+//     return [states[cursor], setState];
+// };
+
+func UseEffect(effect func() EffectTeardown, deps Deps) {
+	cursor, elem := useHooks()
+	if len(elem.hooks) <= cursor {
+		record := &effectRecord{deps: deps}
+		elem.hooks = append(elem.hooks, record)
+		queueTask(func() {
+			if !elem.unmounted {
+				record.teardown = effect()
 			}
-			record.teardown()
-		}
-		effects.Set(pc, &effectRecord{
-			deps: deps,
-			td:   effect(),
 		})
-	})
+		return
+	}
+	record := elem.hooks[cursor].(*effectRecord)
+	if !areDepsEqual(deps, record.deps) {
+		record.deps = deps
+		queueTask(func() {
+			if record.teardown != nil {
+				record.teardown()
+			}
+			if !elem.unmounted {
+				record.teardown = effect()
+			}
+		})
+	}
 }
 
-type Callback[Func any] struct {
-	Invoke Func
+// export let useImmediateEffect = (effect: () => (void | (() => void)), deps: any[]) => {
+//     let [effects, cursor] = getHookData();
+//     let record = effects[cursor] as EffectRecord;
+//     if (!record) {
+//         record = {
+//             d: deps,
+//             t: effect(),
+//         };
+//         effects.push(record);
+//     } else if (!areDepsEqual(deps, record.d)) {
+//         record.t?.();
+//         record.d = deps;
+//         record.t = effect();
+//     }
+// };
+
+type memoRecord[T any] struct {
+	deps Deps
+	val  T
 }
 
-func UseCallback[Func any](handlerFunc Func, deps ...any) *Callback[Func] {
+func UseMemo[T any](create func() T, deps Deps) T {
+	cursor, elem := useHooks()
+	if len(elem.hooks) <= cursor {
+		m := &memoRecord[T]{
+			val:  create(),
+			deps: deps,
+		}
+		elem.hooks = append(elem.hooks, m)
+		return m.val
+	}
+	memo := elem.hooks[cursor].(*memoRecord[T])
+	if !areDepsEqual(deps, memo.deps) {
+		memo.deps = deps
+		memo.val = create()
+	}
+	return memo.val
+}
+
+func UseCallback[Func any](handlerFunc Func, deps Deps) *Callback[Func] {
 	return UseMemo(func() *Callback[Func] {
 		return &Callback[Func]{Invoke: handlerFunc}
-	}, deps...)
+	}, deps)
 }
 
 type Ref[T any] struct {
-	Current T
+	Value T
 }
 
 func UseRef[T any](initialValue T) *Ref[T] {
-	return UseMemo(func() *Ref[T] { return &Ref[T]{Current: initialValue} })
+	return UseMemo[*Ref[T]](func() *Ref[T] { return &Ref[T]{Value: initialValue} }, Deps{})
 }
 
-func UseDeferredEffect(effect func() EffectTeardown, deps ...any) {
-	first := UseRef(true)
-	UseEffect(func() EffectTeardown {
-		if first.Current {
-			first.Current = false
-			return nil
-		}
-		return effect()
-	}, deps...)
-}
+// let useAtomSubscription = <T>(atom: Atom<T> | ReadonlyAtom<T>) => {
+//     let elem = current.e!;
+//     useImmediateEffect(() => {
+//         atom.c.add(elem);
+//         return () => atom.c.delete(elem);
+//     }, [elem]);
+// };
 
-func UseMemo[T any](create func() T, deps ...any) T {
-	node := useCurrentComponent()
-	pc := usePC(node)
-	memos := node.getMemos()
-	if record := memos.Get(pc); record != nil && reflect.DeepEqual(record.deps, deps) {
-		return record.val.(T)
-	}
-	val := create()
-	memos.Set(pc, &memoRecord{
-		deps: deps,
-		val:  val,
-	})
-	return val
-}
+// export let useAtom = <T>(atom: Atom<T>): [T, Dispatch<SetStateAction<T>>] => {
+//     useAtomSubscription(atom);
+//     return [atom.s, atom.u];
+// };
 
-func (r *effectRecord) teardown() {
-	if r.td != nil {
-		r.td()
-	}
+// export let useAtomSetter = <T>(atom: Atom<T>): Dispatch<SetStateAction<T>> => atom.u;
+
+// export let useAtomValue = <T>(atom: Atom<T> | ReadonlyAtom<T>): T => {
+//     useAtomSubscription(atom);
+//     return atom.s;
+// };
+
+// export let useAtomSelector = <T, R>(atom: Atom<T> | ReadonlyAtom<T>, selector: (state: T) => R): R => {
+//     let elem = current.e!;
+//     useImmediateEffect(() => {
+//         let selected = selector(atom.s);
+//         let selects = atom.f.get(elem);
+//         if (!selects) {
+//             atom.f.set(elem, [[selected, selector]]);
+//         } else {
+//             selects.push([selected, selector]);
+//         }
+//         return () => atom.f.delete(elem);
+//     }, [elem, selector]);
+//     return selector(atom.s);
+// };
+
+func queueTask(task func()) {
+	time.AfterFunc(0, task)
 }
