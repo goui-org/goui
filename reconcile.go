@@ -15,9 +15,10 @@ func getDom(elem *Elem) js.Value {
 func reconcile(oldElem *Elem, newElem *Elem) {
 	newElem.unmounted = false
 	if oldElem.tag != newElem.tag || oldElem.ptr != newElem.ptr {
+		oldDom := getDom(oldElem)
 		oldElem.teardown()
 		// TODO: namespace?
-		getDom(oldElem).Call("replaceWith", createDom(newElem, ""))
+		oldDom.Call("replaceWith", createDom(newElem, ""))
 		return
 	}
 	if oldElem.render != nil {
@@ -39,8 +40,8 @@ func reconcileVdomElems(oldElem *Elem, newElem *Elem) {
 }
 
 func reconcileTextElems(oldElem *Elem, newElem *Elem) {
-	if oldElem.text != newElem.text {
-		oldElem.dom.Set("data", newElem.text)
+	if oldElem.attrs != newElem.attrs {
+		oldElem.dom.Set("data", newElem.attrs)
 	}
 }
 
@@ -65,8 +66,8 @@ func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem js
 }
 
 func reconcileAttributes(oldElem *Elem, newElem *Elem) {
-	oldAttrs := oldElem.attrs //.(*Attributes)
-	newAttrs := newElem.attrs //.(*Attributes)
+	oldAttrs := oldElem.attrs.(*Attributes)
+	newAttrs := newElem.attrs.(*Attributes)
 
 	if oldAttrs.Class != newAttrs.Class {
 		if newAttrs.Class == "" {
@@ -111,19 +112,20 @@ func callComponentFuncAndReconcile(oldElem *Elem, newElem *Elem) {
 func moveBefore(parent js.Value, newChdNextKey any, oldChdKey any, currDomNode js.Value, movingDomNode js.Value) {
 	oldPos := movingDomNode.Get("nextSibling")
 	parent.Call("insertBefore", movingDomNode, currDomNode)
-	if !currDomNode.Equal(parent.Get("lastChild")) && newChdNextKey != oldChdKey {
+	if newChdNextKey != oldChdKey && !currDomNode.Equal(parent.Get("lastChild")) {
 		parent.Call("insertBefore", currDomNode, oldPos)
 	}
 }
 
 func reconcileChildren(oldElem *Elem, newElem *Elem) {
-	newChn := newElem.attrs.Children //.(*Attributes).Children
-	oldChn := oldElem.attrs.Children //.(*Attributes).Children
+	newChn := newElem.attrs.(*Attributes).Children
+	oldChn := oldElem.attrs.(*Attributes).Children
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {
-		newElem.dom.Set("innerHTML", "")
+		// newElem.dom.Set("innerHTML", "")
 		for _, ch := range oldChn {
+			getDom(ch).Call("remove")
 			ch.teardown()
 		}
 		return
@@ -143,8 +145,8 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 	}
 	if start >= newLength {
 		for i := start; start < oldLength; i++ {
-			oldChn[i].teardown()
 			getDom(oldChn[i]).Call("remove")
+			oldChn[i].teardown()
 		}
 		return
 	}
@@ -156,7 +158,7 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 		o := oldChn[oldLength]
 		n := newChn[newLength]
 		if n.key == nil || n.key == o.key {
-			reconcile(oldChn[oldLength], newChn[newLength])
+			reconcile(o, n)
 		} else {
 			break
 		}
@@ -181,9 +183,13 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 	for start <= newLength {
 		newChd := newChn[start]
 		if len(oldChn) <= start {
-			newElem.dom.Call("appendChild", createDom(newChd, ""))
-			start++
-			continue
+			doms := make([]any, newLength-start+1)
+			for i := start; i <= newLength; i++ {
+				doms[i-start] = createDom(newChn[i], "")
+			}
+			newElem.dom.Call("append", doms...)
+			// start++
+			break
 		}
 		oldChd := oldChn[start]
 		newKey := newChd.key

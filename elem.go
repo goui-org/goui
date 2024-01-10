@@ -14,11 +14,11 @@ type Elem struct {
 	ptr       uintptr
 	render    func() *Elem
 	key       any
-	attrs     *Attributes
-	text      string
+	attrs     any
 	ref       *Ref[js.Value]
 	dom       js.Value
 	unmounted bool
+	listeners map[string]js.Func
 
 	virt        *Elem
 	queue       []*Elem
@@ -48,11 +48,12 @@ func (e *Elem) teardown() {
 	if e.ref != nil {
 		e.ref.Value = js.Undefined()
 	}
-	if e.attrs != nil {
-		for _, ch := range e.attrs.Children {
+	if attrs, ok := e.attrs.(*Attributes); ok {
+		for _, ch := range attrs.Children {
 			ch.teardown()
 		}
 	}
+	store.put(e)
 }
 
 type Keyer interface {
@@ -78,13 +79,9 @@ func Component[T any](ty func(T) *Elem, props T) *Elem {
 	return e
 }
 
-// type Textable interface {
-// 	string | int
-// }
-
 func Text(content string) *Elem {
 	return &Elem{
-		text: content,
+		attrs: content,
 	}
 }
 
@@ -128,9 +125,9 @@ type Attributes struct {
 	// WheelEvent: wheel
 	// FocusEvent: focus, blur, focusin, and focusout
 
-	OnClick     *Callback[func(*MouseEvent)]
-	OnMouseMove *Callback[func(*MouseEvent)]
-	OnInput     *Callback[func(*InputEvent)]
+	OnClick *Callback[func(*MouseEvent)]
+	// OnMouseMove *Callback[func(*MouseEvent)]
+	// OnInput     *Callback[func(*InputEvent)]
 }
 
 func Element(tag string, attrs *Attributes) *Elem {
@@ -154,16 +151,16 @@ func createDom(elem *Elem, ns string) js.Value {
 			ns = mathNamespace
 			elem.dom = createElementNS(elem.tag, ns)
 		} else {
-			elem.dom = createElement(elem.tag)
+			elem.dom = store.getElement(elem.tag)
 		}
 		if elem.ref != nil {
 			elem.ref.Value = elem.dom
 		}
-		attrs := elem.attrs
+		attrs := elem.attrs.(*Attributes)
 		if attrs.Disabled {
 			elem.dom.Set("disabled", true)
 		}
-		if len(attrs.Class) > 0 {
+		if attrs.Class != "" {
 			elem.dom.Set("className", attrs.Class)
 		}
 		if attrs.Style != "" {
@@ -179,20 +176,32 @@ func createDom(elem *Elem, ns string) js.Value {
 			elem.dom.Set("value", attrs.Value)
 		}
 		if attrs.OnClick != nil {
-			elem.dom.Set("onclick", js.FuncOf(func(_ js.Value, args []js.Value) any {
-				attrs.OnClick.invoke(newMouseEvent(args[0]))
+			invoke := attrs.OnClick.invoke
+			elem.setEventListener("onclick", func(_ js.Value, args []js.Value) any {
+				invoke(newMouseEvent(args[0]))
 				return nil
-			}))
+			})
 		}
-		for _, child := range attrs.Children {
-			elem.dom.Call("appendChild", createDom(child, ns))
+		doms := make([]any, len(attrs.Children))
+		for i, child := range attrs.Children {
+			doms[i] = createDom(child, ns)
 		}
+		elem.dom.Call("append", doms...)
 	} else if elem.render != nil {
 		elem.virt = callComponentFunc(elem)
 		return createDom(elem.virt, ns)
 	} else {
-		elem.dom = createTextNode(elem.text)
+		elem.dom = store.getTextNode(elem.attrs.(string))
 		return elem.dom
 	}
 	return elem.dom
+}
+
+func (e *Elem) setEventListener(name string, fn func(js.Value, []js.Value) any) {
+	if e.listeners == nil {
+		e.listeners = make(map[string]js.Func)
+	}
+	wrapper := js.FuncOf(fn)
+	e.listeners[name] = wrapper
+	e.dom.Set(name, wrapper)
 }

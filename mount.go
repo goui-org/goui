@@ -8,5 +8,5 @@ package goui
 func Mount(selector string, elem *Elem) {
 	root := document.Call("querySelector", selector)
 	root.Call("appendChild", createDom(elem, ""))
-	<-make(chan struct{})
+	select {}
 }
