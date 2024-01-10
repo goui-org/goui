@@ -23,7 +23,7 @@ type Elem struct {
 	virt        *Elem
 	queue       []*Elem
 	hooks       []any
-	hooksCursor int // TODO: does byte help?
+	hooksCursor int
 	memo        []any
 }
 
@@ -53,7 +53,6 @@ func (e *Elem) teardown() {
 			ch.teardown()
 		}
 	}
-	store.put(e)
 }
 
 type Keyer interface {
@@ -151,7 +150,7 @@ func createDom(elem *Elem, ns string) js.Value {
 			ns = mathNamespace
 			elem.dom = createElementNS(elem.tag, ns)
 		} else {
-			elem.dom = store.getElement(elem.tag)
+			elem.dom = createElement(elem.tag)
 		}
 		if elem.ref != nil {
 			elem.ref.Value = elem.dom
@@ -191,7 +190,7 @@ func createDom(elem *Elem, ns string) js.Value {
 		elem.virt = callComponentFunc(elem)
 		return createDom(elem.virt, ns)
 	} else {
-		elem.dom = store.getTextNode(elem.attrs.(string))
+		elem.dom = createTextNode(elem.attrs.(string))
 		return elem.dom
 	}
 	return elem.dom

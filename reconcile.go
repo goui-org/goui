@@ -58,7 +58,7 @@ func reconcileComponents(oldElem *Elem, newElem *Elem) {
 func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem js.Value) {
 	if oldAttr != newAttr {
 		if reflect.ValueOf(newAttr).IsZero() {
-			elem.Call("removeAttr", name)
+			elem.Call("removeAttribute", name)
 		} else {
 			elem.Set(name, newAttr)
 		}
@@ -123,9 +123,8 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {
-		// newElem.dom.Set("innerHTML", "")
+		newElem.dom.Set("innerHTML", nil)
 		for _, ch := range oldChn {
-			getDom(ch).Call("remove")
 			ch.teardown()
 		}
 		return
@@ -188,7 +187,6 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 				doms[i-start] = createDom(newChn[i], "")
 			}
 			newElem.dom.Call("append", doms...)
-			// start++
 			break
 		}
 		oldChd := oldChn[start]

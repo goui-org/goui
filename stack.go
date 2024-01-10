@@ -1,32 +1,32 @@
 package goui
 
-import "syscall/js"
+// import "syscall/js"
 
-type stack struct {
-	items []js.Value
-	len   int
-}
+// type stack struct {
+// 	items []js.Value
+// 	len   int
+// }
 
-func newJsValueStack() *stack {
-	return &stack{}
-}
+// func newJsValueStack() *stack {
+// 	return &stack{}
+// }
 
-func (q *stack) Push(item js.Value) {
-	if q.len < len(q.items) {
-		q.items[q.len] = item
-	} else {
-		q.items = append(q.items, item)
-	}
-	q.len++
-}
+// func (q *stack) Push(item js.Value) {
+// 	if q.len < len(q.items) {
+// 		q.items[q.len] = item
+// 	} else {
+// 		q.items = append(q.items, item)
+// 	}
+// 	q.len++
+// }
 
-func (q *stack) Pop() js.Value {
-	if q.len == 0 {
-		return js.Null()
-	}
-	q.len--
-	return q.items[q.len]
-}
+// func (q *stack) Pop() js.Value {
+// 	if q.len == 0 {
+// 		return js.Null()
+// 	}
+// 	q.len--
+// 	return q.items[q.len]
+// }
 
 // func (q *Stack) Peek() T {
 // 	q.mu.Lock()
@@ -38,9 +38,9 @@ func (q *stack) Pop() js.Value {
 // 	return q.items[q.len-1]
 // }
 
-func (q *stack) Len() int {
-	return q.len
-}
+// func (q *stack) Len() int {
+// 	return q.len
+// }
 
 // func (q *Stack) Slice() []T {
 // 	q.mu.Lock()
