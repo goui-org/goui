@@ -34,7 +34,7 @@ import (
 )
 
 func main() {
-	goui.Mount("#root", goui.Component(app.App, goui.NoProps))
+	goui.Mount("#root", goui.Component(app.App, nil))
 }
 ```
 
@@ -46,30 +46,31 @@ package app
 import (
 	"fmt"
 
-	"github.com/twharmon/godom"
 	"github.com/twharmon/goui"
 )
 
-func App(_ any) *goui.Node {
+func App(goui.NoProps) *goui.Node {
 	count, setCount := goui.UseState(0)
 
 	goui.UseEffect(func() goui.EffectTeardown {
-		godom.Console.Log("count is %d", count)
+		goui.Console.Log("count is %d", count)
 		return nil
-	}, count)
+	}, goui.Deps{count})
 
-	return goui.Element("div", goui.Attributes{
+	handleIncrement := goui.UseCallback(func(e *goui.MouseEvent) {
+		setCount(func(c int) int { return c + 1 })
+	}, goui.Deps{})
+
+	return goui.Element("div", &goui.Attributes{
 		Class: "app",
-		Children: []*goui.Node{
-			goui.Element("button", goui.Attributes{
+		Children: goui.Children{
+			goui.Element("button", &goui.Attributes{
 				Class:    "app-btn",
-				Children: "increment",
-				OnClick: goui.UseCallback(func(e *godom.MouseEvent) {
-					setCount(func(c int) int { return c + 1 })
-				}),
+				Children: goui.Children{goui.Text("increment")},
+				OnClick: handleIncrement,
 			}),
-			goui.Element("p", goui.Attributes{
-				Children: fmt.Sprintf("count: %d", count),
+			goui.Element("p", &goui.Attributes{
+				Children: goui.Children{goui.Text(fmt.Sprintf("count: %d", count))},
 			}),
 		},
 	})
