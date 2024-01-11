@@ -199,6 +199,8 @@ func createDom(elem *Elem, ns string) js.Value {
 func (e *Elem) setEventListener(name string, fn func(js.Value, []js.Value) any) {
 	if e.listeners == nil {
 		e.listeners = make(map[string]js.Func)
+	} else if fn := e.listeners[name]; fn.Truthy() {
+		fn.Release()
 	}
 	wrapper := js.FuncOf(fn)
 	e.listeners[name] = wrapper
