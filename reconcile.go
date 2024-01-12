@@ -5,108 +5,108 @@ import (
 	"syscall/js"
 )
 
-func getDom(elem *Elem) js.Value {
-	for elem.virt != nil {
-		elem = elem.virt
+func getDom(node *Node) js.Value {
+	for node.virtNode != nil {
+		node = node.virtNode
 	}
-	return elem.dom
+	return node.dom
 }
 
-func reconcile(oldElem *Elem, newElem *Elem) {
-	newElem.unmounted = false
-	if oldElem.tag != newElem.tag || oldElem.ptr != newElem.ptr {
-		oldDom := getDom(oldElem)
-		oldElem.teardown()
+func reconcile(oldNode *Node, newNode *Node) {
+	newNode.unmounted = false
+	if oldNode.tag != newNode.tag || oldNode.ptr != newNode.ptr {
+		oldDom := getDom(oldNode)
+		oldNode.teardown()
 		// TODO: namespace?
-		oldDom.Call("replaceWith", createDom(newElem, ""))
+		oldDom.Call("replaceWith", createDom(newNode, ""))
 		return
 	}
-	if oldElem.render != nil {
-		reconcileComponents(oldElem, newElem)
+	if oldNode.render != nil {
+		reconcileComponents(oldNode, newNode)
 		return
 	}
-	newElem.dom = oldElem.dom
-	if oldElem.tag != "" {
-		reconcileVdomElems(oldElem, newElem)
+	newNode.dom = oldNode.dom
+	if oldNode.tag != "" {
+		reconcileVdomElems(oldNode, newNode)
 	} else {
-		reconcileTextElems(oldElem, newElem)
+		reconcileTextElems(oldNode, newNode)
 	}
 }
 
-func reconcileVdomElems(oldElem *Elem, newElem *Elem) {
-	reconcileAttributes(oldElem, newElem)
-	reconcileReference(oldElem, newElem)
-	reconcileChildren(oldElem, newElem)
+func reconcileVdomElems(oldNode *Node, newNode *Node) {
+	reconcileAttributes(oldNode, newNode)
+	reconcileReference(oldNode, newNode)
+	reconcileChildren(oldNode, newNode)
 }
 
-func reconcileTextElems(oldElem *Elem, newElem *Elem) {
-	if oldElem.attrs != newElem.attrs {
-		oldElem.dom.Set("data", newElem.attrs)
+func reconcileTextElems(oldNode *Node, newNode *Node) {
+	if oldNode.attrs != newNode.attrs {
+		oldNode.dom.Set("data", newNode.attrs)
 	}
 }
 
-func reconcileComponents(oldElem *Elem, newElem *Elem) {
-	newElem.hooks = oldElem.hooks
-	if oldElem.memo != nil && newElem.memo != nil && areDepsEqual(oldElem.memo, newElem.memo) {
-		newElem.virt = oldElem.virt
+func reconcileComponents(oldNode *Node, newNode *Node) {
+	newNode.hooks = oldNode.hooks
+	if oldNode.memo != nil && newNode.memo != nil && areDepsEqual(oldNode.memo, newNode.memo) {
+		newNode.virtNode = oldNode.virtNode
 		return
 	}
-	oldElem.queue = nil
-	callComponentFuncAndReconcile(oldElem, newElem)
+	oldNode.queue = nil
+	callComponentFuncAndReconcile(oldNode, newNode)
 }
 
-func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, elem js.Value) {
+func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, jsVal js.Value) {
 	if oldAttr != newAttr {
 		if reflect.ValueOf(newAttr).IsZero() {
-			elem.Call("removeAttribute", name)
+			jsVal.Call("removeAttribute", name)
 		} else {
-			elem.Set(name, newAttr)
+			jsVal.Set(name, newAttr)
 		}
 	}
 }
 
-func reconcileAttributes(oldElem *Elem, newElem *Elem) {
-	oldAttrs := oldElem.attrs.(*Attributes)
-	newAttrs := newElem.attrs.(*Attributes)
+func reconcileAttributes(oldNode *Node, newNode *Node) {
+	oldAttrs := oldNode.attrs.(*Attributes)
+	newAttrs := newNode.attrs.(*Attributes)
 
 	if oldAttrs.Class != newAttrs.Class {
 		if newAttrs.Class == "" {
-			oldElem.dom.Call("removeAttribute", "class")
+			oldNode.dom.Call("removeAttribute", "class")
 		} else {
-			oldElem.dom.Set("className", newAttrs.Class)
+			oldNode.dom.Set("className", newAttrs.Class)
 		}
 	}
 	if oldAttrs.AriaHidden != newAttrs.AriaHidden {
 		if !newAttrs.AriaHidden {
-			oldElem.dom.Call("removeAttribute", "aria-hidden")
+			oldNode.dom.Call("removeAttribute", "aria-hidden")
 		} else {
-			oldElem.dom.Set("ariaHidden", newAttrs.AriaHidden)
+			oldNode.dom.Set("ariaHidden", newAttrs.AriaHidden)
 		}
 	}
-	reconcileAttribute(oldAttrs.Style, newAttrs.Style, "style", oldElem.dom)
-	reconcileAttribute(oldAttrs.ID, newAttrs.ID, "id", oldElem.dom)
-	reconcileAttribute(oldAttrs.Disabled, newAttrs.Disabled, "disabled", oldElem.dom)
-	reconcileAttribute(oldAttrs.Value, newAttrs.Value, "value", oldElem.dom)
+	reconcileAttribute(oldAttrs.Style, newAttrs.Style, "style", oldNode.dom)
+	reconcileAttribute(oldAttrs.ID, newAttrs.ID, "id", oldNode.dom)
+	reconcileAttribute(oldAttrs.Disabled, newAttrs.Disabled, "disabled", oldNode.dom)
+	reconcileAttribute(oldAttrs.Value, newAttrs.Value, "value", oldNode.dom)
 	if oldAttrs.OnClick != newAttrs.OnClick {
-		oldElem.dom.Set("onclick", js.FuncOf(func(_ js.Value, args []js.Value) any {
+		oldNode.dom.Set("onclick", js.FuncOf(func(_ js.Value, args []js.Value) any {
 			newAttrs.OnClick.invoke(newMouseEvent(args[0]))
 			return nil
 		}))
 	}
 }
 
-func reconcileReference(oldElem *Elem, newElem *Elem) {
-	if newElem.ref != nil {
-		newElem.ref.Value = oldElem.dom
-	} else if oldElem.ref != nil {
-		oldElem.ref.Value = js.Null()
+func reconcileReference(oldNode *Node, newNode *Node) {
+	if newNode.ref != nil {
+		newNode.ref.Value = oldNode.dom
+	} else if oldNode.ref != nil {
+		oldNode.ref.Value = js.Null()
 	}
 }
 
-func callComponentFuncAndReconcile(oldElem *Elem, newElem *Elem) {
-	newElemVdom := callComponentFunc(newElem)
-	reconcile(oldElem.virt, newElemVdom)
-	newElem.virt = newElemVdom
+func callComponentFuncAndReconcile(oldNode *Node, newNode *Node) {
+	newElemVdom := callComponentFunc(newNode)
+	reconcile(oldNode.virtNode, newElemVdom)
+	newNode.virtNode = newElemVdom
 }
 
 func moveBefore(parent js.Value, newChdNextKey any, oldChdKey any, currDomNode js.Value, movingDomNode js.Value) {
@@ -117,13 +117,13 @@ func moveBefore(parent js.Value, newChdNextKey any, oldChdKey any, currDomNode j
 	}
 }
 
-func reconcileChildren(oldElem *Elem, newElem *Elem) {
-	newChn := newElem.attrs.(*Attributes).Children
-	oldChn := oldElem.attrs.(*Attributes).Children
+func reconcileChildren(oldNode *Node, newNode *Node) {
+	newChn := newNode.attrs.(*Attributes).Children
+	oldChn := oldNode.attrs.(*Attributes).Children
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {
-		newElem.dom.Set("innerHTML", nil)
+		newNode.dom.Set("innerHTML", nil)
 		for _, ch := range oldChn {
 			ch.teardown()
 		}
@@ -165,7 +165,7 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 		newLength--
 	}
 
-	oldMap := make(map[any]*Elem)
+	oldMap := make(map[any]*Node)
 	for i := start; i <= oldLength; i++ {
 		oldChd := oldChn[i]
 		oldKey := oldChd.key
@@ -178,7 +178,7 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 		}
 	}
 
-	chNodes := newElem.dom.Get("childNodes")
+	chNodes := newNode.dom.Get("childNodes")
 	for start <= newLength {
 		newChd := newChn[start]
 		if len(oldChn) <= start {
@@ -186,7 +186,7 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 			for i := start; i <= newLength; i++ {
 				doms[i-start] = createDom(newChn[i], "")
 			}
-			newElem.dom.Call("append", doms...)
+			newNode.dom.Call("append", doms...)
 			break
 		}
 		oldChd := oldChn[start]
@@ -205,18 +205,18 @@ func reconcileChildren(oldElem *Elem, newElem *Elem) {
 		if mappedOld != nil {
 			oldDom := getDom(mappedOld)
 			if !chdDom.Equal(oldDom) {
-				moveBefore(newElem.dom, nextNewKey, oldChd.key, chdDom, oldDom)
+				moveBefore(newNode.dom, nextNewKey, oldChd.key, chdDom, oldDom)
 			}
 			reconcile(mappedOld, newChd)
 			delete(oldMap, newKey)
 		} else {
-			moveBefore(newElem.dom, nextNewKey, oldChd.key, chdDom, createDom(newChd, ""))
+			moveBefore(newNode.dom, nextNewKey, oldChd.key, chdDom, createDom(newChd, ""))
 		}
 		start++
 	}
 
-	for _, elem := range oldMap {
-		getDom(elem).Call("remove")
-		elem.teardown()
+	for _, node := range oldMap {
+		getDom(node).Call("remove")
+		node.teardown()
 	}
 }

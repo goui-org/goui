@@ -49,7 +49,7 @@ import (
 	"github.com/twharmon/goui"
 )
 
-func App(goui.NoProps) *goui.Elem {
+func App(goui.NoProps) *goui.Node {
 	count, setCount := goui.UseState(0)
 
 	goui.UseEffect(func() goui.EffectTeardown {

@@ -1,87 +1,87 @@
 package goui
 
-import (
-	"time"
-)
-
 type EffectTeardown func()
 type Deps []any
+
+type Callback[Func any] struct {
+	invoke Func
+}
 
 type effectRecord struct {
 	deps     Deps
 	teardown EffectTeardown
 }
 
-func useHooks() (int, *Elem) {
-	elem := currentElem
-	cursor := elem.hooksCursor
-	elem.hooksCursor++
-	return cursor, elem
+func useHooks() (int, *Node) {
+	node := currentElem
+	cursor := node.hooksCursor
+	node.hooksCursor++
+	return cursor, node
 }
 
 func UseState[T comparable](initialValue T) (T, func(func(T) T)) {
-	cursor, elem := useHooks()
-	if len(elem.hooks) <= cursor {
-		elem.hooks = append(elem.hooks, initialValue)
+	cursor, node := useHooks()
+	if len(node.hooks) <= cursor {
+		node.hooks = append(node.hooks, initialValue)
 	}
 	setState := func(update func(T) T) {
-		if elem.unmounted {
+		if node.unmounted {
 			panic("bad set state")
 		}
-		oldVal := elem.hooks[cursor].(T)
+		oldVal := node.hooks[cursor].(T)
 		newVal := update(oldVal)
 		if newVal != oldVal {
-			elem.hooks[cursor] = newVal
-			elem.queue = append(elem.queue, callComponentFunc(elem))
-			queueTask(func() {
-				if len(elem.queue) > 0 {
-					tip := elem.queue[len(elem.queue)-1]
-					elem.queue = nil
-					reconcile(elem.virt, tip)
-					elem.virt = tip
+			node.hooks[cursor] = newVal
+			node.queue = append(node.queue, callComponentFunc(node))
+			go func() {
+				if len(node.queue) > 0 {
+					tip := node.queue[len(node.queue)-1]
+					node.queue = nil
+					reconcile(node.virtNode, tip)
+					node.virtNode = tip
 				}
-			})
+			}()
 		}
 	}
-	return elem.hooks[cursor].(T), setState
+	return node.hooks[cursor].(T), setState
 }
 
 func UseEffect(effect func() EffectTeardown, deps Deps) {
-	cursor, elem := useHooks()
-	if len(elem.hooks) <= cursor {
+	cursor, node := useHooks()
+	if len(node.hooks) <= cursor {
 		record := &effectRecord{deps: deps}
-		elem.hooks = append(elem.hooks, record)
-		queueTask(func() {
-			if !elem.unmounted {
+		node.hooks = append(node.hooks, record)
+		go func() {
+			if !node.unmounted {
 				record.teardown = effect()
 			}
-		})
+		}()
 		return
 	}
-	record := elem.hooks[cursor].(*effectRecord)
+	record := node.hooks[cursor].(*effectRecord)
 	if !areDepsEqual(deps, record.deps) {
 		record.deps = deps
-		queueTask(func() {
+		go func() {
 			if record.teardown != nil {
 				record.teardown()
 			}
-			if !elem.unmounted {
+			if !node.unmounted {
 				record.teardown = effect()
 			}
-		})
+		}()
 	}
 }
 
 func UseImmediateEffect(effect func() EffectTeardown, deps Deps) {
-	cursor, elem := useHooks()
-	if len(elem.hooks) <= cursor {
-		elem.hooks = append(elem.hooks, &effectRecord{
+	cursor, node := useHooks()
+	if len(node.hooks) <= cursor {
+		node.hooks = append(node.hooks, &effectRecord{
 			deps:     deps,
 			teardown: effect(),
 		})
 		return
 	}
-	record := elem.hooks[cursor].(*effectRecord)
+	record := node.hooks[cursor].(*effectRecord)
 	if !areDepsEqual(deps, record.deps) {
 		if record.teardown != nil {
 			record.teardown()
@@ -97,16 +97,16 @@ type memoRecord[T any] struct {
 }
 
 func UseMemo[T any](create func() T, deps Deps) T {
-	cursor, elem := useHooks()
-	if len(elem.hooks) <= cursor {
+	cursor, node := useHooks()
+	if len(node.hooks) <= cursor {
 		m := &memoRecord[T]{
 			val:  create(),
 			deps: deps,
 		}
-		elem.hooks = append(elem.hooks, m)
+		node.hooks = append(node.hooks, m)
 		return m.val
 	}
-	memo := elem.hooks[cursor].(*memoRecord[T])
+	memo := node.hooks[cursor].(*memoRecord[T])
 	if !areDepsEqual(deps, memo.deps) {
 		memo.deps = deps
 		memo.val = create()
@@ -163,6 +163,6 @@ func UseRef[T any](initialValue T) *Ref[T] {
 //     return selector(atom.s);
 // };
 
-func queueTask(task func()) {
-	time.AfterFunc(0, task)
-}
+// func queueTask(task func()) {
+// 	time.AfterFunc(0, task)
+// }

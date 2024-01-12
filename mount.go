@@ -5,8 +5,8 @@
 //	};
 package goui
 
-func Mount(selector string, elem *Elem) {
+func Mount(selector string, node *Node) {
 	root := document.Call("querySelector", selector)
-	root.Call("appendChild", createDom(elem, ""))
+	root.Call("appendChild", createDom(node, ""))
 	select {}
 }

@@ -7,12 +7,12 @@ import (
 
 type NoProps any
 
-type Children []*Elem
+type Children []*Node
 
-type Elem struct {
+type Node struct {
 	tag       string
 	ptr       uintptr
-	render    func() *Elem
+	render    func() *Node
 	key       any
 	attrs     any
 	ref       *Ref[js.Value]
@@ -20,35 +20,31 @@ type Elem struct {
 	unmounted bool
 	listeners map[string]js.Func
 
-	virt        *Elem
-	queue       []*Elem
+	virtNode    *Node
+	queue       []*Node
 	hooks       []any
 	hooksCursor int
 	memo        []any
 }
 
-func (e *Elem) Children() Children {
-	return Children{e}
-}
-
-func (e *Elem) teardown() {
-	if e.virt != nil {
-		e.unmounted = true
-		e.queue = nil
-		for _, h := range e.hooks {
+func (n *Node) teardown() {
+	if n.virtNode != nil {
+		n.unmounted = true
+		n.queue = nil
+		for _, h := range n.hooks {
 			if effect, ok := h.(*effectRecord); ok {
 				if effect.teardown != nil {
 					effect.teardown()
 				}
 			}
 		}
-		e.virt.teardown()
+		n.virtNode.teardown()
 		return
 	}
-	if e.ref != nil {
-		e.ref.Value = js.Undefined()
+	if n.ref != nil {
+		n.ref.Value = js.Undefined()
 	}
-	if attrs, ok := e.attrs.(*Attributes); ok {
+	if attrs, ok := n.attrs.(*Attributes); ok {
 		for _, ch := range attrs.Children {
 			ch.teardown()
 		}
@@ -63,43 +59,39 @@ type Memoer interface {
 	Memo() Deps
 }
 
-func Component[T any](ty func(T) *Elem, props T) *Elem {
+func Component[T any](ty func(T) *Node, props T) *Node {
 	fn := uintptr(reflect.ValueOf(ty).UnsafePointer())
-	e := &Elem{
+	n := &Node{
 		ptr:    fn,
-		render: func() *Elem { return ty(props) },
+		render: func() *Node { return ty(props) },
 	}
 	if keyer, ok := any(props).(Keyer); ok {
-		e.key = keyer.Key()
+		n.key = keyer.Key()
 	}
 	if memoer, ok := any(props).(Memoer); ok {
-		e.memo = memoer.Memo()
+		n.memo = memoer.Memo()
 	}
-	return e
+	return n
 }
 
-func Text(content string) *Elem {
-	return &Elem{
+func Text(content string) *Node {
+	return &Node{
 		attrs: content,
 	}
 }
 
-var currentElem *Elem
+var currentElem *Node
 
-func callComponentFunc(elem *Elem) *Elem {
+func callComponentFunc(node *Node) *Node {
 	prev := currentElem
-	currentElem = elem
-	elem.hooksCursor = 0
-	vd := elem.render()
+	currentElem = node
+	node.hooksCursor = 0
+	vd := node.render()
 	if vd == nil {
-		vd = &Elem{}
+		vd = &Node{}
 	}
 	currentElem = prev
 	return vd
-}
-
-type Callback[Func any] struct {
-	invoke Func
 }
 
 type Attributes struct {
@@ -129,8 +121,8 @@ type Attributes struct {
 	// OnInput     *Callback[func(*InputEvent)]
 }
 
-func Element(tag string, attrs *Attributes) *Elem {
-	return &Elem{
+func Element(tag string, attrs *Attributes) *Node {
+	return &Node{
 		tag:   tag,
 		attrs: attrs,
 		key:   attrs.Key,
@@ -141,43 +133,42 @@ var namespacePrefix = "http://www.w3.org/"
 var svgNamespace = namespacePrefix + "2000/svg"
 var mathNamespace = namespacePrefix + "1998/Math/MathML"
 
-func createDom(elem *Elem, ns string) js.Value {
-	if elem.tag != "" {
-		if elem.tag == "svg" {
+func createDom(node *Node, ns string) js.Value {
+	if node.tag != "" {
+		if node.tag == "svg" {
 			ns = svgNamespace
-			elem.dom = createElementNS(elem.tag, ns)
-		} else if elem.tag == "math" {
+			node.dom = createElementNS(node.tag, ns)
+		} else if node.tag == "math" {
 			ns = mathNamespace
-			elem.dom = createElementNS(elem.tag, ns)
+			node.dom = createElementNS(node.tag, ns)
 		} else {
-			elem.dom = createElement(elem.tag)
+			node.dom = createElement(node.tag)
 		}
-		if elem.ref != nil {
-			elem.ref.Value = elem.dom
+		if node.ref != nil {
+			node.ref.Value = node.dom
 		}
-		attrs := elem.attrs.(*Attributes)
+		attrs := node.attrs.(*Attributes)
 		if attrs.Disabled {
-			elem.dom.Set("disabled", true)
+			node.dom.Set("disabled", true)
 		}
 		if attrs.Class != "" {
-			elem.dom.Set("className", attrs.Class)
+			node.dom.Set("className", attrs.Class)
 		}
 		if attrs.Style != "" {
-			elem.dom.Set("style", attrs.Style)
+			node.dom.Set("style", attrs.Style)
 		}
 		if attrs.ID != "" {
-			elem.dom.Set("id", attrs.ID)
+			node.dom.Set("id", attrs.ID)
 		}
 		if attrs.AriaHidden {
-			elem.dom.Set("ariaHidden", true)
+			node.dom.Set("ariaHidden", true)
 		}
 		if attrs.Value != "" {
-			elem.dom.Set("value", attrs.Value)
+			node.dom.Set("value", attrs.Value)
 		}
 		if attrs.OnClick != nil {
-			invoke := attrs.OnClick.invoke
-			elem.setEventListener("onclick", func(_ js.Value, args []js.Value) any {
-				invoke(newMouseEvent(args[0]))
+			node.setEventListener("onclick", func(_ js.Value, args []js.Value) any {
+				attrs.OnClick.invoke(newMouseEvent(args[0]))
 				return nil
 			})
 		}
@@ -185,24 +176,24 @@ func createDom(elem *Elem, ns string) js.Value {
 		for i, child := range attrs.Children {
 			doms[i] = createDom(child, ns)
 		}
-		elem.dom.Call("append", doms...)
-	} else if elem.render != nil {
-		elem.virt = callComponentFunc(elem)
-		return createDom(elem.virt, ns)
+		node.dom.Call("append", doms...)
+	} else if node.render != nil {
+		node.virtNode = callComponentFunc(node)
+		return createDom(node.virtNode, ns)
 	} else {
-		elem.dom = createTextNode(elem.attrs.(string))
-		return elem.dom
+		node.dom = createTextNode(node.attrs.(string))
+		return node.dom
 	}
-	return elem.dom
+	return node.dom
 }
 
-func (e *Elem) setEventListener(name string, fn func(js.Value, []js.Value) any) {
-	if e.listeners == nil {
-		e.listeners = make(map[string]js.Func)
-	} else if fn := e.listeners[name]; fn.Truthy() {
+func (n *Node) setEventListener(name string, fn func(js.Value, []js.Value) any) {
+	if n.listeners == nil {
+		n.listeners = make(map[string]js.Func)
+	} else if fn := n.listeners[name]; fn.Truthy() {
 		fn.Release()
 	}
 	wrapper := js.FuncOf(fn)
-	e.listeners[name] = wrapper
-	e.dom.Set(name, wrapper)
+	n.listeners[name] = wrapper
+	n.dom.Set(name, wrapper)
 }
