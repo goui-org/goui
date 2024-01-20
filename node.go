@@ -10,13 +10,13 @@ type NoProps any
 type Children []*Node
 
 type Node struct {
-	tag       string
-	ptr       uintptr
-	render    func() *Node
-	key       any
-	attrs     any
-	ref       *Ref[js.Value]
-	dom       js.Value
+	tag    string
+	ptr    uintptr
+	render func() *Node
+	key    any
+	attrs  any
+	// ref       *Ref[js.Value]
+	dom       int
 	unmounted bool
 	listeners map[string]js.Func
 
@@ -41,9 +41,9 @@ func (n *Node) teardown() {
 		n.virtNode.teardown()
 		return
 	}
-	if n.ref != nil {
-		n.ref.Value = js.Undefined()
-	}
+	// if n.ref != nil {
+	// 	n.ref.Value = js.Undefined()
+	// }
 	if attrs, ok := n.attrs.(*Attributes); ok {
 		for _, ch := range attrs.Children {
 			ch.teardown()
@@ -133,59 +133,84 @@ var namespacePrefix = "http://www.w3.org/"
 var svgNamespace = namespacePrefix + "2000/svg"
 var mathNamespace = namespacePrefix + "1998/Math/MathML"
 
-func createDom(node *Node, ns string) js.Value {
+func createDom(node *Node, ns string) int {
 	if node.tag != "" {
 		if node.tag == "svg" {
 			ns = svgNamespace
-			node.dom = createElementNS(node.tag, ns)
+			// node.dom = createElementNS(node.tag, ns)
 		} else if node.tag == "math" {
 			ns = mathNamespace
-			node.dom = createElementNS(node.tag, ns)
+			// node.dom = createElementNS(node.tag, ns)
 		} else {
-			node.dom = createElement(node.tag)
+			node.dom = createElementJS(node.tag)
 		}
-		if node.ref != nil {
-			node.ref.Value = node.dom
-		}
+		// if node.ref != nil {
+		// 	node.ref.Value = node.dom
+		// }
 		attrs := node.attrs.(*Attributes)
-		if attrs.Disabled {
-			node.dom.Set("disabled", true)
-		}
+		// if attrs.Disabled {
+		// 	node.dom.Set("disabled", true)
+		// }
 		if attrs.Class != "" {
-			node.dom.Set("className", attrs.Class)
+			// node.dom.Set("className", attrs.Class)
+			setClass(node.dom, attrs.Class)
 		}
-		if attrs.Style != "" {
-			node.dom.Set("style", attrs.Style)
-		}
+		// if attrs.Style != "" {
+		// 	node.dom.Set("style", attrs.Style)
+		// }
 		if attrs.ID != "" {
-			node.dom.Set("id", attrs.ID)
+			setID(node.dom, attrs.ID)
 		}
-		if attrs.AriaHidden {
-			node.dom.Set("ariaHidden", true)
-		}
-		if attrs.Value != "" {
-			node.dom.Set("value", attrs.Value)
-		}
+		// if attrs.AriaHidden {
+		// 	node.dom.Set("ariaHidden", true)
+		// }
+		// if attrs.Value != "" {
+		// 	node.dom.Set("value", attrs.Value)
+		// }
 		if attrs.OnClick != nil {
 			node.setEventListener("onclick", func(_ js.Value, args []js.Value) any {
 				attrs.OnClick.invoke(newMouseEvent(args[0]))
 				return nil
 			})
 		}
-		doms := make([]any, len(attrs.Children))
-		for i, child := range attrs.Children {
-			doms[i] = createDom(child, ns)
+		// doms := make([]any, len(attrs.Children))
+		for _, child := range attrs.Children {
+			appendChild(node.dom, createDom(child, ns))
 		}
-		node.dom.Call("append", doms...)
+		// node.dom.Call("append", doms...)
 	} else if node.render != nil {
 		node.virtNode = callComponentFunc(node)
 		return createDom(node.virtNode, ns)
 	} else {
-		node.dom = createTextNode(node.attrs.(string))
+		node.dom = createTextNodeJS(node.attrs.(string))
 		return node.dom
 	}
 	return node.dom
 }
+
+//export createElementJS
+func createElementJS(tag string) int
+
+//export createTextNodeJS
+func createTextNodeJS(text string) int
+
+//export appendChild
+func appendChild(parent, child int)
+
+//export clearChildren
+func clearChildren(child int)
+
+//export setClass
+func setClass(child int, name string)
+
+//export setID
+func setID(child int, name string)
+
+//export mount
+func mount(child int)
+
+//export set
+func set(child int, prop string, val string)
 
 func (n *Node) setEventListener(name string, fn func(js.Value, []js.Value) any) {
 	if n.listeners == nil {
@@ -195,5 +220,6 @@ func (n *Node) setEventListener(name string, fn func(js.Value, []js.Value) any) 
 	}
 	wrapper := js.FuncOf(fn)
 	n.listeners[name] = wrapper
-	n.dom.Set(name, wrapper)
+	// n.dom.Set(name, wrapper)
+	global.Get("elements").Index(n.dom).Set(name, wrapper)
 }
