@@ -1,7 +1,6 @@
 package goui
 
 import (
-	"reflect"
 	"syscall/js"
 )
 
@@ -15,10 +14,10 @@ func getDom(node *Node) int {
 func reconcile(oldNode *Node, newNode *Node) {
 	newNode.unmounted = false
 	if oldNode.tag != newNode.tag || oldNode.ptr != newNode.ptr {
-		// oldDom := getDom(oldNode)
-		oldNode.teardown()
+		oldDom := getDom(oldNode)
 		// TODO: namespace?
-		// oldDom.Call("replaceWith", createDom(newNode, ""))
+		replaceWith(oldDom, createDom(newNode, ""))
+		oldNode.teardown()
 		return
 	}
 	if oldNode.render != nil {
@@ -41,8 +40,7 @@ func reconcileVdomElems(oldNode *Node, newNode *Node) {
 
 func reconcileTextElems(oldNode *Node, newNode *Node) {
 	if oldNode.attrs != newNode.attrs {
-		// oldNode.dom.Set("data", newNode.attrs)
-		set(newNode.dom, "data", newNode.attrs.(string))
+		setStr(newNode.dom, "data", newNode.attrs.(string))
 	}
 }
 
@@ -56,12 +54,22 @@ func reconcileComponents(oldNode *Node, newNode *Node) {
 	callComponentFuncAndReconcile(oldNode, newNode)
 }
 
-func reconcileAttribute[T comparable](oldAttr T, newAttr T, name string, jsVal int) {
+func reconcileStringAttribute(oldAttr string, newAttr string, name string, ref int) {
 	if oldAttr != newAttr {
-		if reflect.ValueOf(newAttr).IsZero() {
-			// jsVal.Call("removeAttribute", name)
+		if newAttr == "" {
+			removeAttribute(ref, name)
 		} else {
-			// jsVal.Set(name, newAttr)
+			setStr(ref, name, newAttr)
+		}
+	}
+}
+
+func reconcileBoolAttribute(oldAttr bool, newAttr bool, name string, ref int) {
+	if oldAttr != newAttr {
+		if !newAttr {
+			removeAttribute(ref, name)
+		} else {
+			setBool(ref, name, 1)
 		}
 	}
 }
@@ -72,29 +80,25 @@ func reconcileAttributes(oldNode *Node, newNode *Node) {
 
 	if oldAttrs.Class != newAttrs.Class {
 		if newAttrs.Class == "" {
-			// oldNode.dom.Call("removeAttribute", "class")
-			setClass(oldNode.dom, "")
+			removeAttribute(oldNode.dom, "class")
 		} else {
-			// oldNode.dom.Set("className", newAttrs.Class)
-			setClass(oldNode.dom, newAttrs.Class)
+			setStr(oldNode.dom, "className", newAttrs.Class)
 		}
 	}
-	// if oldAttrs.AriaHidden != newAttrs.AriaHidden {
-	// 	if !newAttrs.AriaHidden {
-	// 		oldNode.dom.Call("removeAttribute", "aria-hidden")
-	// 	} else {
-	// 		oldNode.dom.Set("ariaHidden", newAttrs.AriaHidden)
-	// 	}
-	// }
-	reconcileAttribute(oldAttrs.Style, newAttrs.Style, "style", oldNode.dom)
-	reconcileAttribute(oldAttrs.ID, newAttrs.ID, "id", oldNode.dom)
-	reconcileAttribute(oldAttrs.Disabled, newAttrs.Disabled, "disabled", oldNode.dom)
-	reconcileAttribute(oldAttrs.Value, newAttrs.Value, "value", oldNode.dom)
+
+	if oldAttrs.AriaHidden != newAttrs.AriaHidden {
+		if !newAttrs.AriaHidden {
+			removeAttribute(oldNode.dom, "aria-hidden")
+		} else {
+			setBool(oldNode.dom, "ariaHidden", 1)
+		}
+	}
+	reconcileBoolAttribute(oldAttrs.Disabled, newAttrs.Disabled, "disabled", oldNode.dom)
+	reconcileStringAttribute(oldAttrs.Style, newAttrs.Style, "style", oldNode.dom)
+	reconcileStringAttribute(oldAttrs.Class, newAttrs.Class, "class", oldNode.dom)
+	reconcileStringAttribute(oldAttrs.ID, newAttrs.ID, "id", oldNode.dom)
+	reconcileStringAttribute(oldAttrs.Value, newAttrs.Value, "value", oldNode.dom)
 	if oldAttrs.OnClick != newAttrs.OnClick {
-		// oldNode.dom.Set("onclick", js.FuncOf(func(_ js.Value, args []js.Value) any {
-		// 	newAttrs.OnClick.invoke(newMouseEvent(args[0]))
-		// 	return nil
-		// }))
 		oldNode.setEventListener("onclick", func(_ js.Value, args []js.Value) any {
 			newAttrs.OnClick.invoke(newMouseEvent(args[0]))
 			return nil
@@ -103,11 +107,15 @@ func reconcileAttributes(oldNode *Node, newNode *Node) {
 }
 
 func reconcileReference(oldNode *Node, newNode *Node) {
-	// if newNode.ref != nil {
-	// 	newNode.ref.Value = oldNode.dom
-	// } else if oldNode.ref != nil {
-	// 	oldNode.ref.Value = js.Null()
-	// }
+	if newNode.ref != nil {
+		if oldNode.ref != nil {
+			newNode.ref.Value = oldNode.ref.Value
+		} else {
+			newNode.ref.Value = getJsValue(newNode.dom)
+		}
+	} else if oldNode.ref != nil {
+		oldNode.ref.Value = js.Undefined()
+	}
 }
 
 func callComponentFuncAndReconcile(oldNode *Node, newNode *Node) {
@@ -130,8 +138,6 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {
-		// newNode.dom.Set("innerHTML", nil)
-		clearChildren(newNode.dom)
 		for _, ch := range oldChn {
 			ch.teardown()
 		}
@@ -152,7 +158,6 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	}
 	if start >= newLength {
 		for i := start; start < oldLength; i++ {
-			// getDom(oldChn[i]).Call("remove")
 			oldChn[i].teardown()
 		}
 		return
@@ -187,16 +192,13 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	}
 
 	// chNodes := newNode.dom.Get("childNodes")
-	// chNodes := global.Get("elements").Index(newNode.dom).Get(chNodes)
+	chNodes := getJsValue(newNode.dom).Get("childNodes")
 	for start <= newLength {
 		newChd := newChn[start]
 		if len(oldChn) <= start {
-			// doms := make([]any, newLength-start+1)
 			for i := start; i <= newLength; i++ {
-				// doms[i-start] = createDom(newChn[i], "")
 				appendChild(newNode.dom, createDom(newChn[i], ""))
 			}
-			// newNode.dom.Call("append", doms...)
 			break
 		}
 		oldChd := oldChn[start]
@@ -207,26 +209,27 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 			continue
 		}
 		mappedOld := oldMap[newKey]
-		// chdDom := chNodes.Index(start)
-		// var nextNewKey any
+		chdDom := chNodes.Index(start)
+		var nextNewKey any
 		if len(newChn) > start+1 {
-			// nextNewKey = newChn[start+1].key
+			nextNewKey = newChn[start+1].key
 		}
 		if mappedOld != nil {
-			// oldDom := getDom(mappedOld)
-			// if !chdDom.Equal(oldDom) {
-			// 	// moveBefore(newNode.dom, nextNewKey, oldChd.key, chdDom, oldDom)
-			// }
+			oldDom := getDom(mappedOld)
+			oldDomJsVal := getJsValue(oldDom)
+			if !chdDom.Equal(oldDomJsVal) {
+				moveBefore(getJsValue(newNode.dom), nextNewKey, oldChd.key, chdDom, oldDomJsVal)
+			}
 			reconcile(mappedOld, newChd)
 			delete(oldMap, newKey)
 		} else {
-			// moveBefore(newNode.dom, nextNewKey, oldChd.key, chdDom, createDom(newChd, ""))
+			moveBefore(getJsValue(newNode.dom), nextNewKey, oldChd.key, chdDom, getJsValue(createDom(newChd, "")))
 		}
 		start++
 	}
 
 	for _, node := range oldMap {
-		// getDom(node).Call("remove")
+		// removeNode(getDom(node))
 		node.teardown()
 	}
 }
