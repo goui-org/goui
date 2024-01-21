@@ -40,7 +40,7 @@ func reconcileVdomElems(oldNode *Node, newNode *Node) {
 
 func reconcileTextElems(oldNode *Node, newNode *Node) {
 	if oldNode.attrs != newNode.attrs {
-		setStr(newNode.dom, "data", newNode.attrs.(string))
+		setData(newNode.dom, newNode.attrs.(string))
 	}
 }
 
@@ -124,20 +124,13 @@ func callComponentFuncAndReconcile(oldNode *Node, newNode *Node) {
 	newNode.virtNode = newElemVdom
 }
 
-func moveBefore(parent js.Value, newChdNextKey any, oldChdKey any, currDomNode js.Value, movingDomNode js.Value) {
-	oldPos := movingDomNode.Get("nextSibling")
-	parent.Call("insertBefore", movingDomNode, currDomNode)
-	if newChdNextKey != oldChdKey && !currDomNode.Equal(parent.Get("lastChild")) {
-		parent.Call("insertBefore", currDomNode, oldPos)
-	}
-}
-
 func reconcileChildren(oldNode *Node, newNode *Node) {
 	newChn := newNode.attrs.(*Attributes).Children
 	oldChn := oldNode.attrs.(*Attributes).Children
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {
+		setStr(newNode.dom, "textContent", "")
 		for _, ch := range oldChn {
 			ch.teardown()
 		}
@@ -149,7 +142,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	for start < newLength && start < oldLength {
 		o := oldChn[start]
 		n := newChn[start]
-		if n.key == nil || n.key == o.key {
+		if n.key == "" || n.key == o.key {
 			reconcile(o, n)
 		} else {
 			break
@@ -158,6 +151,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	}
 	if start >= newLength {
 		for i := start; start < oldLength; i++ {
+			removeNode(getDom(oldChn[i]))
 			oldChn[i].teardown()
 		}
 		return
@@ -169,7 +163,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	for newLength > start && oldLength >= start {
 		o := oldChn[oldLength]
 		n := newChn[newLength]
-		if n.key == nil || n.key == o.key {
+		if n.key == "" || n.key == o.key {
 			reconcile(o, n)
 		} else {
 			break
@@ -186,50 +180,48 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 		if i >= len(newChn) {
 			noMoreNewChn = true
 		}
-		if oldKey != nil && (noMoreNewChn || oldKey != newChn[i].key) {
+		if oldKey != "" && (noMoreNewChn || oldKey != newChn[i].key) {
 			oldMap[oldKey] = oldChd
 		}
 	}
 
-	// chNodes := newNode.dom.Get("childNodes")
-	chNodes := getJsValue(newNode.dom).Get("childNodes")
 	for start <= newLength {
-		newChd := newChn[start]
 		if len(oldChn) <= start {
 			for i := start; i <= newLength; i++ {
 				appendChild(newNode.dom, createDom(newChn[i], ""))
 			}
 			break
 		}
+		newChd := newChn[start]
 		oldChd := oldChn[start]
-		newKey := newChd.key
-		if oldChd.key == newKey {
+		if oldChd.key == newChd.key {
 			reconcile(oldChd, newChd)
 			start++
 			continue
 		}
-		mappedOld := oldMap[newKey]
-		chdDom := chNodes.Index(start)
-		var nextNewKey any
+		mappedOld := oldMap[newChd.key]
+		var nextNewKey string
 		if len(newChn) > start+1 {
 			nextNewKey = newChn[start+1].key
 		}
+		var oldDom int
 		if mappedOld != nil {
-			oldDom := getDom(mappedOld)
-			oldDomJsVal := getJsValue(oldDom)
-			if !chdDom.Equal(oldDomJsVal) {
-				moveBefore(getJsValue(newNode.dom), nextNewKey, oldChd.key, chdDom, oldDomJsVal)
-			}
+			oldDom = getDom(mappedOld)
 			reconcile(mappedOld, newChd)
-			delete(oldMap, newKey)
+			delete(oldMap, newChd.key)
 		} else {
-			moveBefore(getJsValue(newNode.dom), nextNewKey, oldChd.key, chdDom, getJsValue(createDom(newChd, "")))
+			oldDom = createDom(newChd, "")
 		}
+		var nextKeyMatch int
+		if nextNewKey == oldChd.key {
+			nextKeyMatch = 1
+		}
+		moveBefore(newNode.dom, nextKeyMatch, start, oldDom)
 		start++
 	}
 
 	for _, node := range oldMap {
-		// removeNode(getDom(node))
+		removeNode(getDom(node))
 		node.teardown()
 	}
 }

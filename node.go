@@ -13,7 +13,7 @@ type Node struct {
 	tag       string
 	ptr       uintptr
 	render    func() *Node
-	key       any
+	key       string
 	attrs     any
 	ref       *Ref[js.Value]
 	dom       int
@@ -49,11 +49,11 @@ func (n *Node) teardown() {
 			ch.teardown()
 		}
 	}
-	removeNode(n.dom)
+	disposeNode(n.dom)
 }
 
 type Keyer interface {
-	Key() any
+	Key() string
 }
 
 type Memoer interface {
@@ -153,7 +153,6 @@ func createDom(node *Node, ns string) int {
 			setStr(node.dom, "disabled", "true")
 		}
 		if attrs.Class != "" {
-			// setStr(node.dom, "className", attrs.Class)
 			setClass(node.dom, attrs.Class)
 		}
 		if attrs.Style != "" {
@@ -202,6 +201,9 @@ func appendChild(parent, child int)
 //export replaceWith
 func replaceWith(old, new int)
 
+//export moveBefore
+func moveBefore(parent int, nextKeyMatch int, start int, movingDomNode int)
+
 //export mount
 func mount(child int, selector string)
 
@@ -210,6 +212,9 @@ func setStr(child int, prop string, val string)
 
 //export setClass
 func setClass(child int, val string)
+
+//export setData
+func setData(child int, val string)
 
 //export setAriaHidden
 func setAriaHidden(child int, val int)
@@ -222,6 +227,9 @@ func removeAttribute(child int, attr string)
 
 //export removeNode
 func removeNode(node int)
+
+//export disposeNode
+func disposeNode(node int)
 
 var elements = global.Get("_GOUI_ELEMENTS")
 
