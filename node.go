@@ -19,7 +19,6 @@ type Node struct {
 	dom       int
 	unmounted bool
 	listeners map[string]js.Func
-	singleton bool
 
 	virtNode    *Node
 	queue       []*Node
@@ -50,11 +49,9 @@ func (n *Node) teardown() {
 			ch.teardown()
 		}
 	}
-	if !n.singleton {
-		disposeNode(n.dom)
-		for _, fn := range n.listeners {
-			fn.Release()
-		}
+	disposeNode(n.dom)
+	for _, fn := range n.listeners {
+		fn.Release()
 	}
 }
 
@@ -69,9 +66,8 @@ type Memoer interface {
 func Component[T any](ty func(T) *Node, props T) *Node {
 	fn := uintptr(reflect.ValueOf(ty).UnsafePointer())
 	n := &Node{
-		ptr:       fn,
-		render:    func() *Node { return ty(props) },
-		singleton: currentElem == nil,
+		ptr:    fn,
+		render: func() *Node { return ty(props) },
 	}
 	if keyer, ok := any(props).(Keyer); ok {
 		n.key = keyer.Key()
@@ -84,8 +80,7 @@ func Component[T any](ty func(T) *Node, props T) *Node {
 
 func Text(content string) *Node {
 	return &Node{
-		attrs:     content,
-		singleton: currentElem == nil,
+		attrs: content,
 	}
 }
 
@@ -132,10 +127,9 @@ type Attributes struct {
 
 func Element(tag string, attrs *Attributes) *Node {
 	return &Node{
-		tag:       tag,
-		attrs:     attrs,
-		key:       attrs.Key,
-		singleton: currentElem == nil,
+		tag:   tag,
+		attrs: attrs,
+		key:   attrs.Key,
 	}
 }
 
@@ -144,9 +138,6 @@ var svgNamespace = namespacePrefix + "2000/svg"
 var mathNamespace = namespacePrefix + "1998/Math/MathML"
 
 func createDom(node *Node, ns string) int {
-	if node.dom != 0 {
-		return cloneNode(node.dom)
-	}
 	if node.tag != "" {
 		if node.tag == "svg" {
 			ns = svgNamespace
@@ -212,9 +203,6 @@ func appendChild(parent, child int)
 
 //export replaceWith
 func replaceWith(old, new int)
-
-//export cloneNode
-func cloneNode(node int) int
 
 //export moveBefore
 func moveBefore(parent int, nextKeyMatch int, start int, movingDomNode int)
