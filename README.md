@@ -44,7 +44,7 @@ func main() {
 package app
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/twharmon/goui"
 )
@@ -53,7 +53,7 @@ func App(goui.NoProps) *goui.Node {
 	count, setCount := goui.UseState(0)
 
 	goui.UseEffect(func() goui.EffectTeardown {
-		goui.Console.Log("count is %d", count)
+		goui.Log("count is %d", count)
 		return nil
 	}, goui.Deps{count})
 
@@ -70,7 +70,7 @@ func App(goui.NoProps) *goui.Node {
 				OnClick: handleIncrement,
 			}),
 			goui.Element("p", &goui.Attributes{
-				Children: goui.Children{goui.Text(fmt.Sprintf("count: %d", count))},
+				Children: goui.Children{goui.Text("count: " + strconv.Itoa(count))},
 			}),
 		},
 	})
