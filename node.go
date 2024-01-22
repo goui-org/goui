@@ -16,6 +16,7 @@ type Node struct {
 	key       string
 	attrs     any
 	ref       *Ref[js.Value]
+	refs      []int
 	dom       int
 	unmounted bool
 
@@ -43,15 +44,22 @@ func (n *Node) teardown() {
 	if n.ref != nil {
 		n.ref.Value = js.Undefined()
 	}
+	var clicks bool
 	if attrs, ok := n.attrs.(*Attributes); ok {
 		for _, ch := range attrs.Children {
 			ch.teardown()
 		}
-		disposeNode(n.dom, attrs.OnClick != nil)
-		if attrs.OnClick != nil {
+		clicks = attrs.OnClick != nil
+		if clicks {
 			delete(clickListeners, n.dom)
 		}
 	}
+	disposeNode(n.dom, clicks)
+	for _, n := range n.refs {
+		disposeNode(n, true) // TODO: not hardcode true
+	}
+	n.refs = n.refs[:0]
+	n.dom = 0
 }
 
 type Keyer interface {
@@ -137,22 +145,47 @@ var svgNamespace = namespacePrefix + "2000/svg"
 var mathNamespace = namespacePrefix + "1998/Math/MathML"
 
 func createDom(node *Node, ns string) int {
+	if node.dom != 0 {
+		node.refs = append(node.refs, node.dom)
+		node.dom = cloneNode(node.dom)
+		return node.dom
+	}
 	if node.tag != "" {
 		attrs := node.attrs.(*Attributes)
-		if node.tag == "svg" {
+		clicks := attrs.OnClick != nil
+		switch node.tag {
+		case "svg":
 			ns = svgNamespace
 			node.dom = createElementNS(node.tag, ns)
-		} else if node.tag == "math" {
+		case "math":
 			ns = mathNamespace
 			node.dom = createElementNS(node.tag, ns)
-		} else {
-			node.dom = createElement(node.tag, attrs.OnClick != nil)
+		case "tr":
+			node.dom = createTr(clicks)
+		case "span":
+			node.dom = createSpan(clicks)
+		case "td":
+			node.dom = createTd(clicks)
+		case "a":
+			node.dom = createA(clicks)
+		case "h1":
+			node.dom = createH1(clicks)
+		case "div":
+			node.dom = createDiv(clicks)
+		case "table":
+			node.dom = createTable(clicks)
+		case "tbody":
+			node.dom = createTbody(clicks)
+		case "button":
+			node.dom = createButton(clicks)
+		default:
+			node.dom = createElement(node.tag, clicks)
 		}
 		if node.ref != nil {
 			node.ref.Value = getJsValue(node.dom)
 		}
 		if attrs.Disabled {
-			setStr(node.dom, "disabled", "true")
+			setBool(node.dom, "disabled", true)
 		}
 		if attrs.Class != "" {
 			setClass(node.dom, attrs.Class)
@@ -164,12 +197,12 @@ func createDom(node *Node, ns string) int {
 			setStr(node.dom, "id", attrs.ID)
 		}
 		if attrs.AriaHidden {
-			setAriaHidden(node.dom, 1)
+			setAriaHidden(node.dom, true)
 		}
 		if attrs.Value != "" {
 			setStr(node.dom, "value", attrs.Value)
 		}
-		if attrs.OnClick != nil {
+		if clicks {
 			clickListeners[node.dom] = attrs.OnClick.invoke
 		}
 		for _, child := range attrs.Children {
@@ -188,6 +221,33 @@ func createDom(node *Node, ns string) int {
 //export createElement
 func createElement(tag string, clicks bool) int
 
+//export createTd
+func createTd(clicks bool) int
+
+//export createTr
+func createTr(clicks bool) int
+
+//export createSpan
+func createSpan(clicks bool) int
+
+//export createDiv
+func createDiv(clicks bool) int
+
+//export createTable
+func createTable(clicks bool) int
+
+//export createTbody
+func createTbody(clicks bool) int
+
+//export createH1
+func createH1(clicks bool) int
+
+//export createA
+func createA(clicks bool) int
+
+//export createButton
+func createButton(clicks bool) int
+
 //export createElementNS
 func createElementNS(tag string, ns string) int
 
@@ -195,13 +255,13 @@ func createElementNS(tag string, ns string) int
 func createTextNode(text string) int
 
 //export appendChild
-func appendChild(parent, child int)
+func appendChild(parent int, child int)
 
 //export replaceWith
 func replaceWith(old, new int)
 
 //export moveBefore
-func moveBefore(parent int, nextKeyMatch int, start int, movingDomNode int)
+func moveBefore(parent int, nextKeyMatch bool, start int, movingDomNode int)
 
 //export mount
 func mount(child int, selector string)
@@ -216,10 +276,10 @@ func setClass(child int, val string)
 func setData(child int, val string)
 
 //export setAriaHidden
-func setAriaHidden(child int, val int)
+func setAriaHidden(child int, val bool)
 
 //export setBool
-func setBool(child int, prop string, val int)
+func setBool(child int, prop string, val bool)
 
 //export removeAttribute
 func removeAttribute(child int, attr string)
@@ -230,11 +290,13 @@ func removeNode(node int)
 //export disposeNode
 func disposeNode(node int, clicks bool)
 
+//export cloneNode
+func cloneNode(node int) int
+
 var clickListeners = map[int]func(*MouseEvent){}
 var _listener func(*MouseEvent)
-var _event *MouseEvent
 var _callClickListener = js.FuncOf(func(js.Value, []js.Value) any {
-	_listener(_event)
+	_listener(newMouseEvent(global.Get("_GOUI_EVENT")))
 	return nil
 })
 
@@ -242,7 +304,6 @@ var _callClickListener = js.FuncOf(func(js.Value, []js.Value) any {
 func callClickListener(node int) {
 	if listener, ok := clickListeners[node]; ok {
 		_listener = listener
-		_event = newMouseEvent(global.Get("_GOUI_EVENT"))
 		_callClickListener.Invoke()
 	}
 }
@@ -250,5 +311,5 @@ func callClickListener(node int) {
 var elements = global.Get("_GOUI_ELEMENTS")
 
 func getJsValue(ref int) js.Value {
-	return elements.Index(ref)
+	return elements.Index(int(ref))
 }

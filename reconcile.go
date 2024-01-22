@@ -17,6 +17,11 @@ func reconcile(oldNode *Node, newNode *Node) {
 		oldDom := getDom(oldNode)
 		// TODO: namespace?
 		replaceWith(oldDom, createDom(newNode, ""))
+		// var clicks bool
+		// if attrs, ok := oldNode.attrs.(*Attributes); ok && attrs.OnClick != nil {
+		// 	clicks = true
+		// }
+		// disposeNode(oldNode.dom, clicks)
 		oldNode.teardown()
 		return
 	}
@@ -69,7 +74,7 @@ func reconcileBoolAttribute(oldAttr bool, newAttr bool, name string, ref int) {
 		if !newAttr {
 			removeAttribute(ref, name)
 		} else {
-			setBool(ref, name, 1)
+			setBool(ref, name, true)
 		}
 	}
 }
@@ -90,7 +95,7 @@ func reconcileAttributes(oldNode *Node, newNode *Node) {
 		if !newAttrs.AriaHidden {
 			removeAttribute(oldNode.dom, "aria-hidden")
 		} else {
-			setBool(oldNode.dom, "ariaHidden", 1)
+			setAriaHidden(oldNode.dom, true)
 		}
 	}
 	reconcileBoolAttribute(oldAttrs.Disabled, newAttrs.Disabled, "disabled", oldNode.dom)
@@ -169,7 +174,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 		newLength--
 	}
 
-	oldMap := make(map[any]*Node)
+	oldMap := make(map[string]*Node)
 	for i := start; i <= oldLength; i++ {
 		oldChd := oldChn[i]
 		oldKey := oldChd.key
@@ -196,24 +201,19 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 			start++
 			continue
 		}
-		mappedOld := oldMap[newChd.key]
-		var nextNewKey string
+		var nextIsCorrect bool
 		if len(newChn) > start+1 {
-			nextNewKey = newChn[start+1].key
+			nextIsCorrect = newChn[start+1].key == oldChd.key
 		}
 		var oldDom int
-		if mappedOld != nil {
+		if mappedOld, ok := oldMap[newChd.key]; ok {
 			oldDom = getDom(mappedOld)
 			reconcile(mappedOld, newChd)
 			delete(oldMap, newChd.key)
 		} else {
 			oldDom = createDom(newChd, "")
 		}
-		var nextKeyMatch int
-		if nextNewKey == oldChd.key {
-			nextKeyMatch = 1
-		}
-		moveBefore(newNode.dom, nextKeyMatch, start, oldDom)
+		moveBefore(newNode.dom, nextIsCorrect, start, oldDom)
 		start++
 	}
 
