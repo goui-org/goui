@@ -99,10 +99,7 @@ func reconcileAttributes(oldNode *Node, newNode *Node) {
 	reconcileStringAttribute(oldAttrs.ID, newAttrs.ID, "id", oldNode.dom)
 	reconcileStringAttribute(oldAttrs.Value, newAttrs.Value, "value", oldNode.dom)
 	if oldAttrs.OnClick != newAttrs.OnClick {
-		oldNode.setEventListener("onclick", func(_ js.Value, args []js.Value) any {
-			newAttrs.OnClick.invoke(newMouseEvent(args[0]))
-			return nil
-		})
+		clickListeners[newNode.dom] = newAttrs.OnClick.invoke
 	}
 }
 

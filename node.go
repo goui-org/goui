@@ -18,7 +18,6 @@ type Node struct {
 	ref       *Ref[js.Value]
 	dom       int
 	unmounted bool
-	listeners map[string]js.Func
 
 	virtNode    *Node
 	queue       []*Node
@@ -48,10 +47,10 @@ func (n *Node) teardown() {
 		for _, ch := range attrs.Children {
 			ch.teardown()
 		}
-	}
-	disposeNode(n.dom)
-	for _, fn := range n.listeners {
-		fn.Release()
+		disposeNode(n.dom, attrs.OnClick != nil)
+		if attrs.OnClick != nil {
+			delete(clickListeners, n.dom)
+		}
 	}
 }
 
@@ -139,6 +138,7 @@ var mathNamespace = namespacePrefix + "1998/Math/MathML"
 
 func createDom(node *Node, ns string) int {
 	if node.tag != "" {
+		attrs := node.attrs.(*Attributes)
 		if node.tag == "svg" {
 			ns = svgNamespace
 			node.dom = createElementNS(node.tag, ns)
@@ -146,12 +146,11 @@ func createDom(node *Node, ns string) int {
 			ns = mathNamespace
 			node.dom = createElementNS(node.tag, ns)
 		} else {
-			node.dom = createElement(node.tag)
+			node.dom = createElement(node.tag, attrs.OnClick != nil)
 		}
 		if node.ref != nil {
 			node.ref.Value = getJsValue(node.dom)
 		}
-		attrs := node.attrs.(*Attributes)
 		if attrs.Disabled {
 			setStr(node.dom, "disabled", "true")
 		}
@@ -171,10 +170,7 @@ func createDom(node *Node, ns string) int {
 			setStr(node.dom, "value", attrs.Value)
 		}
 		if attrs.OnClick != nil {
-			node.setEventListener("onclick", func(_ js.Value, args []js.Value) any {
-				attrs.OnClick.invoke(newMouseEvent(args[0]))
-				return nil
-			})
+			clickListeners[node.dom] = attrs.OnClick.invoke
 		}
 		for _, child := range attrs.Children {
 			appendChild(node.dom, createDom(child, ns))
@@ -190,7 +186,7 @@ func createDom(node *Node, ns string) int {
 }
 
 //export createElement
-func createElement(tag string) int
+func createElement(tag string, clicks bool) int
 
 //export createElementNS
 func createElementNS(tag string, ns string) int
@@ -232,21 +228,27 @@ func removeAttribute(child int, attr string)
 func removeNode(node int)
 
 //export disposeNode
-func disposeNode(node int)
+func disposeNode(node int, clicks bool)
+
+var clickListeners = map[int]func(*MouseEvent){}
+var _listener func(*MouseEvent)
+var _event *MouseEvent
+var _callClickListener = js.FuncOf(func(js.Value, []js.Value) any {
+	_listener(_event)
+	return nil
+})
+
+//export callClickListener
+func callClickListener(node int) {
+	if listener, ok := clickListeners[node]; ok {
+		_listener = listener
+		_event = newMouseEvent(global.Get("_GOUI_EVENT"))
+		_callClickListener.Invoke()
+	}
+}
 
 var elements = global.Get("_GOUI_ELEMENTS")
 
 func getJsValue(ref int) js.Value {
 	return elements.Index(ref)
-}
-
-func (n *Node) setEventListener(name string, fn func(js.Value, []js.Value) any) {
-	if n.listeners == nil {
-		n.listeners = make(map[string]js.Func)
-	} else if fn := n.listeners[name]; fn.Truthy() {
-		fn.Release()
-	}
-	wrapper := js.FuncOf(fn)
-	n.listeners[name] = wrapper
-	getJsValue(n.dom).Set(name, wrapper)
 }
