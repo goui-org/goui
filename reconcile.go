@@ -15,13 +15,7 @@ func reconcile(oldNode *Node, newNode *Node) {
 	newNode.unmounted = false
 	if oldNode.tag != newNode.tag || oldNode.ptr != newNode.ptr {
 		oldDom := getDom(oldNode)
-		// TODO: namespace?
-		replaceWith(oldDom, createDom(newNode, ""))
-		// var clicks bool
-		// if attrs, ok := oldNode.attrs.(*Attributes); ok && attrs.OnClick != nil {
-		// 	clicks = true
-		// }
-		// disposeNode(oldNode.dom, clicks)
+		replaceWith(oldDom, createDom(newNode, oldNode.namespace))
 		oldNode.teardown()
 		return
 	}
@@ -190,7 +184,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	for start <= newLength {
 		if len(oldChn) <= start {
 			for i := start; i <= newLength; i++ {
-				appendChild(newNode.dom, createDom(newChn[i], ""))
+				appendChild(newNode.dom, createDom(newChn[i], newNode.namespace))
 			}
 			break
 		}
@@ -211,7 +205,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 			reconcile(mappedOld, newChd)
 			delete(oldMap, newChd.key)
 		} else {
-			oldDom = createDom(newChd, "")
+			oldDom = createDom(newChd, newNode.namespace)
 		}
 		moveBefore(newNode.dom, nextIsCorrect, start, oldDom)
 		start++

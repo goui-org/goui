@@ -34,7 +34,7 @@ import (
 )
 
 func main() {
-	goui.Mount("#root", goui.Component(app.App, nil))
+	goui.Mount("#root", app.App)
 }
 ```
 
@@ -63,14 +63,14 @@ func App(goui.NoProps) *goui.Node {
 
 	return goui.Element("div", &goui.Attributes{
 		Class: "app",
-		Children: goui.Children{
+		Slot: []*goui.Node{
 			goui.Element("button", &goui.Attributes{
-				Class:    "app-btn",
-				Children: goui.Children{goui.Text("increment")},
+				Class:   "app-btn",
+				Slot:    "increment",
 				OnClick: handleIncrement,
 			}),
 			goui.Element("p", &goui.Attributes{
-				Children: goui.Children{goui.Text("count: " + strconv.Itoa(count))},
+				Slot: "count: " + strconv.Itoa(count),
 			}),
 		},
 	})

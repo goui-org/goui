@@ -10,6 +10,7 @@ type NoProps any
 
 type Node struct {
 	tag       string
+	namespace string
 	ptr       uintptr
 	render    func() *Node
 	key       string
@@ -108,9 +109,11 @@ type Attributes struct {
 	Disabled bool
 	Style    string
 	Value    string
-	Slot     any
-	Key      string
-	Type     string
+
+	// Slot must be string, int, *Node, []*Node, func(NoProps) *Node, or nil
+	Slot any
+	Key  string
+	Type string
 
 	AriaHidden bool
 
@@ -145,14 +148,12 @@ func Element(tag string, attrs *Attributes) *Node {
 			n.children = []*Node{chn}
 		case []*Node:
 			n.children = chn
+		case func(NoProps) *Node:
+			n.children = []*Node{Component(chn, nil)}
 		}
 	}
 	return n
 }
-
-var namespacePrefix = "http://www.w3.org/"
-var svgNamespace = namespacePrefix + "2000/svg"
-var mathNamespace = namespacePrefix + "1998/Math/MathML"
 
 func createDom(node *Node, ns string) int {
 	if node.dom != 0 {
@@ -161,15 +162,13 @@ func createDom(node *Node, ns string) int {
 		return node.dom
 	}
 	if node.tag != "" {
-		attrs := node.attrs
-		clicks := attrs.OnClick != nil
+		clicks := node.attrs.OnClick != nil
+		if node.tag == "svg" {
+			ns = "http://www.w3.org/2000/svg"
+		} else if node.tag == "math" {
+			ns = "http://www.w3.org/1998/Math/MathML"
+		}
 		switch node.tag {
-		case "svg":
-			ns = svgNamespace
-			node.dom = createElementNS(node.tag, ns)
-		case "math":
-			ns = mathNamespace
-			node.dom = createElementNS(node.tag, ns)
 		case "tr":
 			node.dom = createTr(clicks)
 		case "span":
@@ -189,32 +188,37 @@ func createDom(node *Node, ns string) int {
 		case "button":
 			node.dom = createButton(clicks)
 		default:
-			node.dom = createElement(node.tag, clicks)
+			if ns == "" {
+				node.dom = createElement(node.tag, clicks)
+			} else {
+				node.dom = createElementNS(node.tag, ns, clicks)
+			}
 		}
 		if node.ref != nil {
 			node.ref.Value = getJsValue(node.dom)
 		}
-		if attrs.Disabled {
+		if node.attrs.Disabled {
 			setBool(node.dom, "disabled", true)
 		}
-		if attrs.Class != "" {
-			setClass(node.dom, attrs.Class)
+		if node.attrs.Class != "" {
+			setClass(node.dom, node.attrs.Class)
 		}
-		if attrs.Style != "" {
-			setStr(node.dom, "style", attrs.Style)
+		if node.attrs.Style != "" {
+			setStr(node.dom, "style", node.attrs.Style)
 		}
-		if attrs.ID != "" {
-			setStr(node.dom, "id", attrs.ID)
+		if node.attrs.ID != "" {
+			setStr(node.dom, "id", node.attrs.ID)
 		}
-		if attrs.AriaHidden {
+		if node.attrs.AriaHidden {
 			setAriaHidden(node.dom, true)
 		}
-		if attrs.Value != "" {
-			setStr(node.dom, "value", attrs.Value)
+		if node.attrs.Value != "" {
+			setStr(node.dom, "value", node.attrs.Value)
 		}
 		if clicks {
-			clickListeners[node.dom] = attrs.OnClick.invoke
+			clickListeners[node.dom] = node.attrs.OnClick.invoke
 		}
+		node.namespace = ns
 		for _, child := range node.children {
 			appendChild(node.dom, createDom(child, ns))
 		}
@@ -259,7 +263,7 @@ func createA(clicks bool) int
 func createButton(clicks bool) int
 
 //export createElementNS
-func createElementNS(tag string, ns string) int
+func createElementNS(tag string, ns string, clicks bool) int
 
 //export createTextNode
 func createTextNode(text string) int
