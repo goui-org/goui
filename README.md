@@ -5,7 +5,7 @@ Experimental web ui library for creating user interfaces.
 Create an app with the goui cli tool GoUIX
 
 ```
-go install github.com/twharmon/gouix@latest
+go install github.com/goui-org/gouix@latest
 ```
 
 Create a new app
@@ -29,7 +29,7 @@ gouix build
 package main
 
 import (
-	"github.com/twharmon/goui"
+	"github.com/goui-org/goui"
 	"main/app"
 )
 

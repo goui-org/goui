@@ -1,3 +1,3 @@
-module github.com/twharmon/goui
+module github.com/goui-org/goui
 
 go 1.20
