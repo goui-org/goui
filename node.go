@@ -45,15 +45,11 @@ func (n *Node) teardown() {
 	if n.ref != nil {
 		n.ref.Value = js.Undefined()
 	}
-	var clicks bool
 	for _, ch := range n.children {
 		ch.teardown()
 	}
-	if n.attrs != nil {
-		clicks = n.attrs.OnClick != nil
-		if clicks {
-			delete(clickListeners, n.dom)
-		}
+	if n.attrs != nil && n.attrs.OnClick != nil {
+		delete(clickListeners, n.dom)
 	}
 	disposeNode(n.dom)
 	for _, n := range n.refs {
