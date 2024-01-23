@@ -44,8 +44,8 @@ func reconcileVdomElems(oldNode *Node, newNode *Node) {
 }
 
 func reconcileTextElems(oldNode *Node, newNode *Node) {
-	if oldNode.attrs != newNode.attrs {
-		setData(newNode.dom, newNode.attrs.(string))
+	if oldNode.text != newNode.text {
+		setData(newNode.dom, newNode.text)
 	}
 }
 
@@ -80,8 +80,8 @@ func reconcileBoolAttribute(oldAttr bool, newAttr bool, name string, ref int) {
 }
 
 func reconcileAttributes(oldNode *Node, newNode *Node) {
-	oldAttrs := oldNode.attrs.(*Attributes)
-	newAttrs := newNode.attrs.(*Attributes)
+	oldAttrs := oldNode.attrs
+	newAttrs := newNode.attrs
 
 	if oldAttrs.Class != newAttrs.Class {
 		if newAttrs.Class == "" {
@@ -127,8 +127,8 @@ func callComponentFuncAndReconcile(oldNode *Node, newNode *Node) {
 }
 
 func reconcileChildren(oldNode *Node, newNode *Node) {
-	newChn := newNode.attrs.(*Attributes).Children
-	oldChn := oldNode.attrs.(*Attributes).Children
+	newChn := newNode.children
+	oldChn := oldNode.children
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {

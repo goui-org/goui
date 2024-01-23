@@ -2,23 +2,24 @@ package goui
 
 import (
 	"reflect"
+	"strconv"
 	"syscall/js"
 )
 
 type NoProps any
-
-type Children []*Node
 
 type Node struct {
 	tag       string
 	ptr       uintptr
 	render    func() *Node
 	key       string
-	attrs     any
+	attrs     *Attributes
+	text      string
 	ref       *Ref[js.Value]
 	refs      []int
 	dom       int
 	unmounted bool
+	children  []*Node
 
 	virtNode    *Node
 	queue       []*Node
@@ -45,18 +46,18 @@ func (n *Node) teardown() {
 		n.ref.Value = js.Undefined()
 	}
 	var clicks bool
-	if attrs, ok := n.attrs.(*Attributes); ok {
-		for _, ch := range attrs.Children {
-			ch.teardown()
-		}
-		clicks = attrs.OnClick != nil
+	for _, ch := range n.children {
+		ch.teardown()
+	}
+	if n.attrs != nil {
+		clicks = n.attrs.OnClick != nil
 		if clicks {
 			delete(clickListeners, n.dom)
 		}
 	}
-	disposeNode(n.dom, clicks)
+	disposeNode(n.dom)
 	for _, n := range n.refs {
-		disposeNode(n, true) // TODO: not hardcode true
+		disposeNode(n)
 	}
 	n.refs = n.refs[:0]
 	n.dom = 0
@@ -87,7 +88,7 @@ func Component[T any](ty func(T) *Node, props T) *Node {
 
 func Text(content string) *Node {
 	return &Node{
-		attrs: content,
+		text: content,
 	}
 }
 
@@ -111,7 +112,7 @@ type Attributes struct {
 	Disabled bool
 	Style    string
 	Value    string
-	Children Children
+	Slot     any
 	Key      string
 	Type     string
 
@@ -133,11 +134,24 @@ type Attributes struct {
 }
 
 func Element(tag string, attrs *Attributes) *Node {
-	return &Node{
+	n := &Node{
 		tag:   tag,
 		attrs: attrs,
 		key:   attrs.Key,
 	}
+	if attrs.Slot != nil {
+		switch chn := attrs.Slot.(type) {
+		case string:
+			n.children = []*Node{Text(chn)}
+		case int:
+			n.children = []*Node{Text(strconv.Itoa(chn))}
+		case *Node:
+			n.children = []*Node{chn}
+		case []*Node:
+			n.children = chn
+		}
+	}
+	return n
 }
 
 var namespacePrefix = "http://www.w3.org/"
@@ -151,7 +165,7 @@ func createDom(node *Node, ns string) int {
 		return node.dom
 	}
 	if node.tag != "" {
-		attrs := node.attrs.(*Attributes)
+		attrs := node.attrs
 		clicks := attrs.OnClick != nil
 		switch node.tag {
 		case "svg":
@@ -205,14 +219,14 @@ func createDom(node *Node, ns string) int {
 		if clicks {
 			clickListeners[node.dom] = attrs.OnClick.invoke
 		}
-		for _, child := range attrs.Children {
+		for _, child := range node.children {
 			appendChild(node.dom, createDom(child, ns))
 		}
 	} else if node.render != nil {
 		node.virtNode = callComponentFunc(node)
 		return createDom(node.virtNode, ns)
 	} else {
-		node.dom = createTextNode(node.attrs.(string))
+		node.dom = createTextNode(node.text)
 		return node.dom
 	}
 	return node.dom
@@ -288,7 +302,7 @@ func removeAttribute(child int, attr string)
 func removeNode(node int)
 
 //export disposeNode
-func disposeNode(node int, clicks bool)
+func disposeNode(node int)
 
 //export cloneNode
 func cloneNode(node int) int

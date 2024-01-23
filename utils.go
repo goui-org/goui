@@ -12,8 +12,8 @@ func areDepsEqual(a Deps, b Deps) bool {
 	return true
 }
 
-func Map[T any](s []T, m func(item T) *Node) Children {
-	k := make(Children, len(s))
+func Map[T any](s []T, m func(item T) *Node) []*Node {
+	k := make([]*Node, len(s))
 	for i := range s {
 		k[i] = m(s[i])
 	}
