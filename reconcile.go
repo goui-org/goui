@@ -21,6 +21,8 @@ func reconcile(oldNode *Node, newNode *Node) {
 		reconcileComponents(oldNode, newNode)
 	} else if oldNode.tag != "" {
 		reconcileVdomElems(oldNode, newNode)
+	} else if oldNode.textContent != newNode.textContent {
+		setTextContent(newNode.dom, newNode.textContent)
 	}
 }
 

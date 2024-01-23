@@ -105,8 +105,7 @@ type Attributes struct {
 	Disabled bool
 	Style    string
 	Value    string
-	// Memo     Deps
-	Key string
+	Key      string
 
 	// Slot must be string, int, *Node, []*Node, func(NoProps) *Node, or nil
 	Slot any
@@ -146,11 +145,51 @@ func Element(tag string, attrs *Attributes) *Node {
 			n.children = []*Node{chn}
 		case []*Node:
 			n.children = chn
+		case []any:
+			n.children = make([]*Node, len(chn))
+			for i := 0; i < len(chn); i++ {
+				n.children[i] = makeNode(chn[i])
+			}
 		case func(NoProps) *Node:
 			n.children = []*Node{Component(chn, nil)}
+		case []func(NoProps) *Node:
+			n.children = make([]*Node, len(chn))
+			for i := 0; i < len(chn); i++ {
+				n.children[i] = Component(chn[i], nil)
+			}
+		case []string:
+			n.children = make([]*Node, len(chn))
+			for i := 0; i < len(chn); i++ {
+				n.children[i] = text(chn[i])
+			}
+		case []int:
+			n.children = make([]*Node, len(chn))
+			for i := 0; i < len(chn); i++ {
+				n.children[i] = text(strconv.Itoa(chn[i]))
+			}
 		}
 	}
 	return n
+}
+
+func text(content string) *Node {
+	return &Node{
+		textContent: content,
+	}
+}
+
+func makeNode(v any) *Node {
+	switch chn := v.(type) {
+	case string:
+		return text(chn)
+	case int:
+		return text(strconv.Itoa(chn))
+	case *Node:
+		return chn
+	case func(NoProps) *Node:
+		return Component(chn, nil)
+	}
+	return nil
 }
 
 func createDom(node *Node, ns string) int {
@@ -227,7 +266,7 @@ func createDom(node *Node, ns string) int {
 		node.virtNode = callComponentFunc(node)
 		return createDom(node.virtNode, ns)
 	} else {
-		node.dom = createEmptyTextNode()
+		node.dom = createTextNode(node.textContent)
 		return node.dom
 	}
 	return node.dom
@@ -266,8 +305,8 @@ func createButton(clicks bool) int
 //export createElementNS
 func createElementNS(tag string, ns string, clicks bool) int
 
-//export createEmptyTextNode
-func createEmptyTextNode() int
+//export createTextNode
+func createTextNode(text string) int
 
 //export appendChild
 func appendChild(parent int, child int)

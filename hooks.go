@@ -36,7 +36,7 @@ func UseState[T comparable](initialValue T) (T, func(func(T) T)) {
 			go func() {
 				if len(node.queue) > 0 {
 					tip := node.queue[len(node.queue)-1]
-					node.queue = nil
+					node.queue = node.queue[:0]
 					reconcile(node.virtNode, tip)
 					node.virtNode = tip
 				}
