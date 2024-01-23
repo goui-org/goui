@@ -68,21 +68,18 @@ type Memoer interface {
 	Memo() Deps
 }
 
-func (n *Node) Memo(deps ...any) *Node {
-	n.memo = deps
-	return n
-}
-
-func (n *Node) Key(key string) *Node {
-	n.key = key
-	return n
-}
-
 func Component[T any](ty func(T) *Node, props T) *Node {
-	return &Node{
+	n := &Node{
 		ptr:    uintptr(reflect.ValueOf(ty).UnsafePointer()),
 		render: func() *Node { return ty(props) },
 	}
+	if keyer, ok := any(props).(Keyer); ok {
+		n.key = keyer.Key()
+	}
+	if memoer, ok := any(props).(Memoer); ok {
+		n.memo = memoer.Memo()
+	}
+	return n
 }
 
 var currentElem *Node
