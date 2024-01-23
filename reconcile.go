@@ -17,35 +17,37 @@ func reconcile(oldNode *Node, newNode *Node) {
 		oldDom := getDom(oldNode)
 		replaceWith(oldDom, createDom(newNode, oldNode.namespace))
 		oldNode.teardown()
-		return
-	}
-	if oldNode.render != nil {
+	} else if oldNode.render != nil {
 		reconcileComponents(oldNode, newNode)
-		return
-	}
-	newNode.dom = oldNode.dom
-	if oldNode.tag != "" {
+	} else if oldNode.tag != "" {
 		reconcileVdomElems(oldNode, newNode)
-	} else {
-		reconcileTextElems(oldNode, newNode)
 	}
 }
 
 func reconcileVdomElems(oldNode *Node, newNode *Node) {
+	newNode.dom = oldNode.dom
+	if areDepsEqual(oldNode.memo, newNode.memo) {
+		return
+	}
+	if oldNode.textContent != newNode.textContent {
+		setTextContent(newNode.dom, newNode.textContent)
+	}
 	reconcileAttributes(oldNode, newNode)
-	reconcileReference(oldNode, newNode)
 	reconcileChildren(oldNode, newNode)
-}
-
-func reconcileTextElems(oldNode *Node, newNode *Node) {
-	if oldNode.text != newNode.text {
-		setData(newNode.dom, newNode.text)
+	if newNode.ref != nil {
+		if oldNode.ref != nil {
+			newNode.ref.Value = oldNode.ref.Value
+		} else {
+			newNode.ref.Value = getJsValue(newNode.dom)
+		}
+	} else if oldNode.ref != nil {
+		oldNode.ref.Value = js.Undefined()
 	}
 }
 
 func reconcileComponents(oldNode *Node, newNode *Node) {
 	newNode.hooks = oldNode.hooks
-	if oldNode.memo != nil && newNode.memo != nil && areDepsEqual(oldNode.memo, newNode.memo) {
+	if areDepsEqual(oldNode.memo, newNode.memo) {
 		newNode.virtNode = oldNode.virtNode
 		return
 	}
@@ -102,18 +104,6 @@ func reconcileAttributes(oldNode *Node, newNode *Node) {
 	}
 }
 
-func reconcileReference(oldNode *Node, newNode *Node) {
-	if newNode.ref != nil {
-		if oldNode.ref != nil {
-			newNode.ref.Value = oldNode.ref.Value
-		} else {
-			newNode.ref.Value = getJsValue(newNode.dom)
-		}
-	} else if oldNode.ref != nil {
-		oldNode.ref.Value = js.Undefined()
-	}
-}
-
 func callComponentFuncAndReconcile(oldNode *Node, newNode *Node) {
 	newElemVdom := callComponentFunc(newNode)
 	reconcile(oldNode.virtNode, newElemVdom)
@@ -126,7 +116,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 	newLength := len(newChn)
 	oldLength := len(oldChn)
 	if newLength == 0 && oldLength > 0 {
-		setStr(newNode.dom, "textContent", "")
+		setTextContent(newNode.dom, "")
 		for _, ch := range oldChn {
 			ch.teardown()
 		}

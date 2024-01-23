@@ -1,7 +1,7 @@
 package goui
 
 func areDepsEqual(a Deps, b Deps) bool {
-	if len(a) != len(b) {
+	if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
 		return false
 	}
 	for i := range a {

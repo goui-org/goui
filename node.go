@@ -9,24 +9,24 @@ import (
 type NoProps any
 
 type Node struct {
-	tag       string
-	namespace string
-	ptr       uintptr
-	render    func() *Node
-	key       string
-	attrs     *Attributes
-	text      string
-	ref       *Ref[js.Value]
-	refs      []int
-	dom       int
-	unmounted bool
-	children  []*Node
+	tag         string
+	namespace   string
+	ptr         uintptr
+	render      func() *Node
+	key         string
+	attrs       *Attributes
+	textContent string
+	ref         *Ref[js.Value]
+	refs        []int
+	dom         int
+	unmounted   bool
+	children    []*Node
 
 	virtNode    *Node
 	queue       []*Node
 	hooks       []any
 	hooksCursor int
-	memo        []any
+	memo        Deps
 }
 
 func (n *Node) teardown() {
@@ -68,24 +68,20 @@ type Memoer interface {
 	Memo() Deps
 }
 
-func Component[T any](ty func(T) *Node, props T) *Node {
-	fn := uintptr(reflect.ValueOf(ty).UnsafePointer())
-	n := &Node{
-		ptr:    fn,
-		render: func() *Node { return ty(props) },
-	}
-	if keyer, ok := any(props).(Keyer); ok {
-		n.key = keyer.Key()
-	}
-	if memoer, ok := any(props).(Memoer); ok {
-		n.memo = memoer.Memo()
-	}
+func (n *Node) Memo(deps ...any) *Node {
+	n.memo = deps
 	return n
 }
 
-func Text(content string) *Node {
+func (n *Node) Key(key string) *Node {
+	n.key = key
+	return n
+}
+
+func Component[T any](ty func(T) *Node, props T) *Node {
 	return &Node{
-		text: content,
+		ptr:    uintptr(reflect.ValueOf(ty).UnsafePointer()),
+		render: func() *Node { return ty(props) },
 	}
 }
 
@@ -109,10 +105,12 @@ type Attributes struct {
 	Disabled bool
 	Style    string
 	Value    string
+	// Memo     Deps
+	Key string
 
 	// Slot must be string, int, *Node, []*Node, func(NoProps) *Node, or nil
 	Slot any
-	Key  string
+	// Key  string
 	Type string
 
 	AriaHidden bool
@@ -141,9 +139,9 @@ func Element(tag string, attrs *Attributes) *Node {
 	if attrs.Slot != nil {
 		switch chn := attrs.Slot.(type) {
 		case string:
-			n.children = []*Node{Text(chn)}
+			n.textContent = chn
 		case int:
-			n.children = []*Node{Text(strconv.Itoa(chn))}
+			n.textContent = strconv.Itoa(chn)
 		case *Node:
 			n.children = []*Node{chn}
 		case []*Node:
@@ -215,6 +213,9 @@ func createDom(node *Node, ns string) int {
 		if node.attrs.Value != "" {
 			setStr(node.dom, "value", node.attrs.Value)
 		}
+		if node.textContent != "" {
+			setTextContent(node.dom, node.textContent)
+		}
 		if clicks {
 			clickListeners[node.dom] = node.attrs.OnClick.invoke
 		}
@@ -226,7 +227,7 @@ func createDom(node *Node, ns string) int {
 		node.virtNode = callComponentFunc(node)
 		return createDom(node.virtNode, ns)
 	} else {
-		node.dom = createTextNode(node.text)
+		node.dom = createEmptyTextNode()
 		return node.dom
 	}
 	return node.dom
@@ -265,8 +266,8 @@ func createButton(clicks bool) int
 //export createElementNS
 func createElementNS(tag string, ns string, clicks bool) int
 
-//export createTextNode
-func createTextNode(text string) int
+//export createEmptyTextNode
+func createEmptyTextNode() int
 
 //export appendChild
 func appendChild(parent int, child int)
@@ -286,8 +287,8 @@ func setStr(child int, prop string, val string)
 //export setClass
 func setClass(child int, val string)
 
-//export setData
-func setData(child int, val string)
+//export setTextContent
+func setTextContent(child int, val string)
 
 //export setAriaHidden
 func setAriaHidden(child int, val bool)
