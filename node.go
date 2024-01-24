@@ -106,8 +106,8 @@ type Attributes struct {
 
 	// Slot must be string, int, *Node, []*Node, func(NoProps) *Node, or nil
 	Slot any
-	// Key  string
 	Type string
+	Ref  *Ref[js.Value]
 
 	AriaHidden bool
 
@@ -131,38 +131,39 @@ func Element(tag string, attrs *Attributes) *Node {
 		tag:   tag,
 		attrs: attrs,
 		key:   attrs.Key,
+		ref:   attrs.Ref,
 	}
 	if attrs.Slot != nil {
-		switch chn := attrs.Slot.(type) {
+		switch slot := attrs.Slot.(type) {
 		case string:
-			n.textContent = chn
+			n.textContent = slot
 		case int:
-			n.textContent = strconv.Itoa(chn)
+			n.textContent = strconv.Itoa(slot)
 		case *Node:
-			n.children = []*Node{chn}
-		case []*Node:
-			n.children = chn
-		case []any:
-			n.children = make([]*Node, len(chn))
-			for i := 0; i < len(chn); i++ {
-				n.children[i] = makeNode(chn[i])
-			}
+			n.children = []*Node{slot}
 		case func(NoProps) *Node:
-			n.children = []*Node{Component(chn, nil)}
+			n.children = []*Node{Component(slot, nil)}
+		case []*Node:
+			n.children = slot
+		case []any:
+			n.children = make([]*Node, len(slot))
+			for i := 0; i < len(slot); i++ {
+				n.children[i] = makeNode(slot[i])
+			}
 		case []func(NoProps) *Node:
-			n.children = make([]*Node, len(chn))
-			for i := 0; i < len(chn); i++ {
-				n.children[i] = Component(chn[i], nil)
+			n.children = make([]*Node, len(slot))
+			for i := 0; i < len(slot); i++ {
+				n.children[i] = Component(slot[i], nil)
 			}
 		case []string:
-			n.children = make([]*Node, len(chn))
-			for i := 0; i < len(chn); i++ {
-				n.children[i] = text(chn[i])
+			n.children = make([]*Node, len(slot))
+			for i := 0; i < len(slot); i++ {
+				n.children[i] = text(slot[i])
 			}
 		case []int:
-			n.children = make([]*Node, len(chn))
-			for i := 0; i < len(chn); i++ {
-				n.children[i] = text(strconv.Itoa(chn[i]))
+			n.children = make([]*Node, len(slot))
+			for i := 0; i < len(slot); i++ {
+				n.children[i] = text(strconv.Itoa(slot[i]))
 			}
 		}
 	}
