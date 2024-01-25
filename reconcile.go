@@ -19,15 +19,17 @@ func reconcile(oldNode *Node, newNode *Node) {
 		oldNode.teardown()
 	} else if oldNode.render != nil {
 		reconcileComponents(oldNode, newNode)
-	} else if oldNode.tag != "" {
-		reconcileVdomElems(oldNode, newNode)
-	} else if oldNode.textContent != newNode.textContent {
-		setTextContent(newNode.dom, newNode.textContent)
+	} else {
+		newNode.dom = oldNode.dom
+		if oldNode.tag != "" {
+			reconcileVdomElems(oldNode, newNode)
+		} else if oldNode.textContent != newNode.textContent {
+			setData(newNode.dom, newNode.textContent)
+		}
 	}
 }
 
 func reconcileVdomElems(oldNode *Node, newNode *Node) {
-	newNode.dom = oldNode.dom
 	if areDepsEqual(oldNode.memo, newNode.memo) {
 		return
 	}
