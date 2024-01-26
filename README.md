@@ -2,7 +2,7 @@
 Experimental web ui library for creating user interfaces.
 
 ## GoUIX
-Create an app with the goui cli tool GoUIX
+Install `gouix`, a cli tool for GoUI.
 
 ```
 go install github.com/goui-org/gouix@latest
@@ -46,7 +46,7 @@ package app
 import (
 	"strconv"
 
-	"github.com/twharmon/goui"
+	"github.com/goui-org/goui"
 )
 
 func App(goui.NoProps) *goui.Node {
