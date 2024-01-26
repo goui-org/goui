@@ -140,9 +140,10 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 		start++
 	}
 	if start >= newLength {
-		for i := start; start < oldLength; i++ {
-			removeNode(getDom(oldChn[i]))
-			oldChn[i].teardown()
+		for start < oldLength {
+			removeNode(getDom(oldChn[start]))
+			oldChn[start].teardown()
+			start++
 		}
 		return
 	}
@@ -182,6 +183,7 @@ func reconcileChildren(oldNode *Node, newNode *Node) {
 			}
 			break
 		}
+
 		newChd := newChn[start]
 		oldChd := oldChn[start]
 		if oldChd.key == newChd.key {
