@@ -1,5 +1,5 @@
 # GoUI
-Experimental web ui library for creating user interfaces.
+An experimental web framework for creating user interfaces.
 
 ## GoUIX
 Install `gouix`, a cli tool for GoUI.
