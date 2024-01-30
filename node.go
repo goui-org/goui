@@ -82,17 +82,17 @@ func Component[T any](ty func(T) *Node, props T) *Node {
 	return n
 }
 
-var currentElem *Node
+var currentNode *Node
 
 func callComponentFunc(node *Node) *Node {
-	prev := currentElem
-	currentElem = node
+	prev := currentNode
+	currentNode = node
 	node.hooksCursor = 0
 	vd := node.render()
 	if vd == nil {
 		vd = &Node{}
 	}
-	currentElem = prev
+	currentNode = prev
 	return vd
 }
 

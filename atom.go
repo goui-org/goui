@@ -1,10 +1,65 @@
 package goui
 
+import (
+	"github.com/goui-org/goui/maps"
+	"github.com/goui-org/goui/sets"
+)
+
 // import { Dispatch, SetStateAction, UpdateStateAction } from './hooks.js';
 // import { ComponentElem } from './elem.js';
 // import { callComponentFuncAndReconcile } from './reconcile.js';
 
 // export type AtomSelector<T, R> = (state: T) => R
+
+type selectorRecord[T comparable] struct {
+	selected any
+	selector func(T) any
+}
+
+type Atom[T comparable] struct {
+	value     T
+	subs      *sets.Set[*Node]
+	selectors *maps.Map[*Node, []*selectorRecord[T]]
+}
+
+func CreateAtom[T comparable](initialValue T) *Atom[T] {
+	return &Atom[T]{
+		value:     initialValue,
+		subs:      sets.New[*Node](),
+		selectors: maps.New[*Node, []*selectorRecord[T]](),
+	}
+}
+
+func (a *Atom[T]) subscribe(n *Node) {
+	a.subs.Add(n)
+}
+
+func (a *Atom[T]) unsubscribe(n *Node) {
+	a.subs.Delete(n)
+}
+
+func (a *Atom[T]) update(action func(T) T) {
+	newVal := action(a.value)
+	if newVal != a.value {
+		a.value = newVal
+		go a.reconcile()
+	}
+}
+
+func (a *Atom[T]) reconcile() {
+	for _, node := range a.subs.Slice() {
+		if a.subs.Has(node) {
+			callComponentFuncAndReconcile(node, node)
+		}
+	}
+	for _, entry := range a.selectors.Slice() {
+		for _, record := range entry.Value {
+			if record.selected != record.selector(a.value) {
+				callComponentFuncAndReconcile(entry.Key, entry.Key)
+			}
+		}
+	}
+}
 
 // export interface Atom<T> {
 //     s: T // state

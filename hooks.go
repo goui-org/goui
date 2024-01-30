@@ -13,7 +13,7 @@ type effectRecord struct {
 }
 
 func useHooks() (int, *Node) {
-	node := currentElem
+	node := currentNode
 	cursor := node.hooksCursor
 	node.hooksCursor++
 	return cursor, node
@@ -128,41 +128,46 @@ func UseRef[T any](initialValue T) *Ref[T] {
 	return UseMemo[*Ref[T]](func() *Ref[T] { return &Ref[T]{Value: initialValue} }, Deps{})
 }
 
-// let useAtomSubscription = <T>(atom: Atom<T> | ReadonlyAtom<T>) => {
-//     let elem = current.e!;
-//     useImmediateEffect(() => {
-//         atom.c.add(elem);
-//         return () => atom.c.delete(elem);
-//     }, [elem]);
-// };
+func useAtomSubscription[T comparable](atom *Atom[T]) {
+	node := currentNode
+	UseImmediateEffect(func() EffectTeardown {
+		atom.subscribe(node)
+		return func() {
+			atom.unsubscribe(node)
+		}
+	}, Deps{node})
+}
 
-// export let useAtom = <T>(atom: Atom<T>): [T, Dispatch<SetStateAction<T>>] => {
-//     useAtomSubscription(atom);
-//     return [atom.s, atom.u];
-// };
+func UseAtom[T comparable](atom *Atom[T]) (T, func(func(T) T)) {
+	useAtomSubscription(atom)
+	return atom.value, atom.update
+}
 
-// export let useAtomSetter = <T>(atom: Atom<T>): Dispatch<SetStateAction<T>> => atom.u;
+func UseAtomValue[T comparable](atom *Atom[T]) T {
+	useAtomSubscription(atom)
+	return atom.value
+}
 
-// export let useAtomValue = <T>(atom: Atom<T> | ReadonlyAtom<T>): T => {
-//     useAtomSubscription(atom);
-//     return atom.s;
-// };
+func UseAtomSetter[T comparable](atom *Atom[T]) func(func(T) T) {
+	return atom.update
+}
 
-// export let useAtomSelector = <T, R>(atom: Atom<T> | ReadonlyAtom<T>, selector: (state: T) => R): R => {
-//     let elem = current.e!;
-//     useImmediateEffect(() => {
-//         let selected = selector(atom.s);
-//         let selects = atom.f.get(elem);
-//         if (!selects) {
-//             atom.f.set(elem, [[selected, selector]]);
-//         } else {
-//             selects.push([selected, selector]);
-//         }
-//         return () => atom.f.delete(elem);
-//     }, [elem, selector]);
-//     return selector(atom.s);
-// };
-
-// func queueTask(task func()) {
-// 	time.AfterFunc(0, task)
-// }
+func UseAtomSelector[T comparable, R any](atom *Atom[T], selector func(T) R) R {
+	node := currentNode
+	selected := selector(atom.value)
+	UseImmediateEffect(func() EffectTeardown {
+		selects, ok := atom.selectors.Get(node)
+		record := &selectorRecord[T]{
+			selected: selected,
+			selector: func(t T) any { return selector(t) },
+		}
+		if ok {
+			selects = append(selects, record)
+			atom.selectors.Set(node, selects)
+		} else {
+			atom.selectors.Set(node, []*selectorRecord[T]{record})
+		}
+		return func() { atom.selectors.Delete(node) }
+	}, nil)
+	return selected
+}
